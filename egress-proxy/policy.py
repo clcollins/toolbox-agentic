@@ -1,41 +1,44 @@
+#!/usr/bin/env python3
 """
-Egress policy for the agent's *only* route to the internet.
+Egress policy proxy — the agent container's only route to the internet.
 
-Run as a sidecar / separate pod; the agent container is network-fenced so this
-proxy is its single reachable next hop (K8s: NetworkPolicy egress -> proxy only;
-podman: nftables in the netns, see run-podman.sh). The agent sets
-HTTPS_PROXY/HTTP_PROXY to this proxy.
+Zero third-party dependencies (stdlib only). Runs as a sidecar; the agent
+container is network-fenced so this proxy is its single reachable next hop.
+The agent sets HTTPS_PROXY/HTTP_PROXY to this proxy.
 
-Two classes of traffic:
+Two traffic classes:
 
-  1. TRUSTED_HOSTS  — git/API/tooling endpoints that legitimately need POST/PUT/etc
-     (clone/push, PR/MR creation, Claude API, Go module fetch, package registries).
-     These are TLS-passthrough (not intercepted) and allowed for any method, but ONLY
-     for hosts on the list. Everything else in this class is denied.
+  1. TRUSTED_HOSTS — git/API/tooling endpoints that legitimately need any
+     HTTP method (clone/push, PR/MR creation, Claude API, Go module fetch).
+     HTTPS (CONNECT): blind TCP tunnel (no MITM).
+     HTTP: forward with any method.
 
-  2. RESEARCH       — arbitrary web reads for WebFetch. TLS is terminated so the
-     method can be inspected, and only GET/HEAD is permitted. POST/PUT/DELETE/PATCH
-     are rejected. (Install this proxy's CA in the agent image trust store, or scope
-     research to https only via a known research allow-list.)
+  2. Everything else — HTTPS: CONNECT denied (403). HTTP: GET/HEAD only (405
+     for other methods). This is stricter than MITM-and-inspect: untrusted
+     HTTPS hosts are unreachable entirely, not just read-only.
 
-Start:  mitmdump -s policy.py --mode regular --listen-port 8080 \
-          --set block_global=false --set connection_strategy=lazy
-Generate/trust CA:  mitmproxy writes ~/.mitmproxy/mitmproxy-ca-cert.pem — copy it into
-the agent image and `update-ca-trust`, OR mount it and set NODE_EXTRA_CA_CERTS/SSL_CERT_FILE.
+Start:  python3 policy.py
+        (listens on 0.0.0.0:8080)
+
+Env:
+  EGRESS_PROFILE=offline-go   strips package/toolchain hosts from the trusted set
+  PROXY_PORT=8080             listen port (default 8080)
 """
-from mitmproxy import http
+import http.client
+import http.server
 import os
+import select
+import socket
+import socketserver
+import sys
+import threading
+from urllib.parse import urlparse
 
-# Hosts allowed ALL methods (push, PR/MR, API). Tighten to your repos/instances.
 TRUSTED_HOSTS = {
     "api.anthropic.com",
-    # Vertex AI (Claude via GCP) — ADC token exchange + inference endpoints
+    # Vertex AI (Claude via GCP)
     "oauth2.googleapis.com",
     "aiplatform.googleapis.com",
-    "us-east5-aiplatform.googleapis.com",
-    "global-aiplatform.googleapis.com",
-    "us-central1-aiplatform.googleapis.com",
-    "europe-west1-aiplatform.googleapis.com",
     # GitHub
     "github.com", "api.github.com", "codeload.github.com",
     "objects.githubusercontent.com", "uploads.github.com",
@@ -47,64 +50,148 @@ TRUSTED_HOSTS = {
     "static.crates.io", "index.crates.io",
 }
 
-# Package/toolchain endpoints removed when EGRESS_PROFILE=offline-go (air-gapped Go):
-# deps + toolchains must come from the pre-baked/seeded cache, not the network.
+_TRUSTED_SUFFIXES = (
+    "-aiplatform.googleapis.com",
+)
+
 _PACKAGE_HOSTS = {
     "proxy.golang.org", "sum.golang.org", "goproxy.io",
     "registry.npmjs.org", "pypi.org", "files.pythonhosted.org",
     "static.crates.io", "index.crates.io",
 }
-if os.environ.get("EGRESS_PROFILE") == "offline-go":
-    TRUSTED_HOSTS -= _PACKAGE_HOSTS  # only git hosts + Anthropic remain reachable
 
-# Methods permitted for RESEARCH (non-trusted) hosts.
+if os.environ.get("EGRESS_PROFILE") == "offline-go":
+    TRUSTED_HOSTS -= _PACKAGE_HOSTS
+
 RESEARCH_METHODS = {"GET", "HEAD"}
 
-# Optional: restrict research to specific domains too (empty = any host, GET-only).
-RESEARCH_ALLOW = set()  # e.g. {"pkg.go.dev", "raw.githubusercontent.com", "docs.gitlab.com"}
 
-
-# Suffix patterns for hosts that vary by region (e.g. us-east5-aiplatform.googleapis.com).
-_TRUSTED_SUFFIXES = (
-    "-aiplatform.googleapis.com",
-)
-
-
-def _host(flow: http.HTTPFlow) -> str:
-    return (flow.request.pretty_host or "").lower()
-
-
-def _is_trusted(host: str) -> bool:
+def _is_trusted(host):
+    host = host.lower().split(":")[0]
     if host in TRUSTED_HOSTS:
         return True
-    return any(host.endswith(suffix) for suffix in _TRUSTED_SUFFIXES)
+    return any(host.endswith(s) for s in _TRUSTED_SUFFIXES)
 
 
-def http_connect(flow: http.HTTPFlow):
-    """CONNECT (HTTPS tunnel). Passthrough is only for trusted hosts.
+def _tunnel(client_sock, remote_sock):
+    """Bidirectional TCP relay between two sockets."""
+    socks = [client_sock, remote_sock]
+    try:
+        while True:
+            readable, _, errs = select.select(socks, [], socks, 30)
+            if errs:
+                break
+            for s in readable:
+                data = s.recv(65536)
+                if not data:
+                    return
+                target = remote_sock if s is client_sock else client_sock
+                target.sendall(data)
+    finally:
+        for s in socks:
+            try:
+                s.close()
+            except OSError:
+                pass
 
-    For non-trusted hosts we do NOT reject here (we still want to inspect the
-    inner request method), so let it proceed to TLS interception via `request`.
-    """
-    host = _host(flow)
-    if _is_trusted(host):
-        flow.metadata["passthrough"] = True
+
+class ProxyHandler(http.server.BaseHTTPRequestHandler):
+    server_version = "agent-egress-proxy/1.0"
+
+    def do_CONNECT(self):
+        host_port = self.path
+        host = host_port.split(":")[0]
+        port = int(host_port.split(":")[1]) if ":" in host_port else 443
+
+        if not _is_trusted(host):
+            self.send_error(403, f"egress denied: CONNECT to untrusted host {host}")
+            return
+
+        try:
+            remote = socket.create_connection((host, port), timeout=10)
+        except Exception as e:
+            self.send_error(502, f"cannot reach {host}:{port}: {e}")
+            return
+
+        self.send_response(200, "Connection established")
+        self.end_headers()
+
+        _tunnel(self.connection, remote)
+
+    def _forward_request(self):
+        parsed = urlparse(self.path)
+        host = parsed.hostname or ""
+        port = parsed.port or 80
+        method = self.command
+
+        if not _is_trusted(host) and method not in RESEARCH_METHODS:
+            self.send_error(
+                405,
+                f"egress denied: {method} not permitted to untrusted host {host}",
+            )
+            return
+
+        path = parsed.path or "/"
+        if parsed.query:
+            path = f"{path}?{parsed.query}"
+
+        content_length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(content_length) if content_length > 0 else None
+
+        headers = {k: v for k, v in self.headers.items()
+                   if k.lower() not in ("proxy-connection", "proxy-authorization")}
+
+        try:
+            conn = http.client.HTTPConnection(host, port, timeout=30)
+            conn.request(method, path, body=body, headers=headers)
+            resp = conn.getresponse()
+
+            self.send_response(resp.status)
+            for k, v in resp.getheaders():
+                if k.lower() not in ("transfer-encoding",):
+                    self.send_header(k, v)
+            self.end_headers()
+
+            while True:
+                chunk = resp.read(65536)
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+            conn.close()
+        except Exception as e:
+            self.send_error(502, f"proxy error: {e}")
+
+    do_GET = _forward_request
+    do_HEAD = _forward_request
+    do_POST = _forward_request
+    do_PUT = _forward_request
+    do_DELETE = _forward_request
+    do_PATCH = _forward_request
+    do_OPTIONS = _forward_request
+
+    def log_message(self, fmt, *args):
+        sys.stderr.write(f"[proxy] {self.address_string()} {fmt % args}\n")
+        sys.stderr.flush()
 
 
-def request(flow: http.HTTPFlow):
-    host = _host(flow)
-    method = flow.request.method.upper()
+class ThreadedProxy(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
 
-    if _is_trusted(host):
-        return  # trusted endpoint: allow any method
 
-    # RESEARCH class (intercepted): enforce GET/HEAD and optional host allow-list.
-    if RESEARCH_ALLOW and host not in RESEARCH_ALLOW:
-        flow.response = http.Response.make(403, b"egress denied: host not allow-listed\n")
-        return
-    if method not in RESEARCH_METHODS:
-        flow.response = http.Response.make(
-            405, f"egress denied: {method} not permitted (research is GET-only)\n".encode()
-        )
-        return
-    # else: GET/HEAD to an allowed research host -> permit
+def main():
+    port = int(os.environ.get("PROXY_PORT", "8080"))
+    server = ThreadedProxy(("0.0.0.0", port), ProxyHandler)
+    print(f"[proxy] listening on 0.0.0.0:{port}", flush=True)
+    print(f"[proxy] trusted hosts: {len(TRUSTED_HOSTS)}", flush=True)
+    profile = os.environ.get("EGRESS_PROFILE", "default")
+    print(f"[proxy] egress profile: {profile}", flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    server.server_close()
+
+
+if __name__ == "__main__":
+    main()

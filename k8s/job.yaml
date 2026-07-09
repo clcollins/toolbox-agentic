@@ -82,10 +82,6 @@ spec:
               value: "http://agent-egress-proxy.agents.svc:8080"
             - name: NO_PROXY
               value: "localhost,127.0.0.1"
-            - name: SSL_CERT_FILE
-              value: "/etc/agent/ca/proxy-ca.pem"
-            - name: NODE_EXTRA_CA_CERTS
-              value: "/etc/agent/ca/proxy-ca.pem"
           resources:
             requests:
               cpu: "2"
@@ -102,9 +98,6 @@ spec:
               mountPath: /workspace
             - name: tmp
               mountPath: /tmp
-            - name: egress-ca
-              mountPath: /etc/agent/ca
-              readOnly: true
             # Vertex AI: mount ADC credentials (uncomment for Vertex auth)
             # - name: gcloud-adc
             #   mountPath: /home/agent/.config/gcloud
@@ -120,9 +113,6 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 1Gi
-        - name: egress-ca
-          configMap:
-            name: agent-egress-ca
         # Vertex AI: ADC credentials Secret (uncomment for Vertex auth)
         # - name: gcloud-adc
         #   secret:

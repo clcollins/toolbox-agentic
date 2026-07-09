@@ -1,0 +1,17 @@
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.6
+
+LABEL org.opencontainers.image.title="agent-egress-proxy" \
+      org.opencontainers.image.description="Stdlib-only egress policy proxy for the Claude agent runner"
+
+RUN microdnf install -y --nodocs python3 \
+    && microdnf clean all
+
+COPY policy.py /opt/proxy/policy.py
+
+RUN groupadd -g 1001 proxy \
+    && useradd -u 1001 -g 1001 -s /sbin/nologin proxy
+
+USER 1001
+EXPOSE 8080
+
+ENTRYPOINT ["python3", "/opt/proxy/policy.py"]
