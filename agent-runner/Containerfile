@@ -23,8 +23,8 @@ FROM registry.access.redhat.com/ubi9/ubi:9.6 AS build
 ARG TARGETARCH                      # populated by buildkit: amd64 | arm64
 ARG GO_VERSION=1.26.5
 # per-arch checksums from https://go.dev/dl/ (both required for multi-arch builds)
-ARG GO_SHA256_AMD64=REPLACE_go1.26.5.linux-amd64.tar.gz_SHA256
-ARG GO_SHA256_ARM64=REPLACE_go1.26.5.linux-arm64.tar.gz_SHA256
+ARG GO_SHA256_AMD64=5c2c3b16caefa1d968a94c1daca04a7ca301a496d9b086e17ad77bb81393f053
+ARG GO_SHA256_ARM64=fe4789e92b1f33358680864bbe8704289e7bb5fc207d80623c308935bd696d49
 ARG GLAB_VERSION=1.107.0
 
 RUN set -eux; \
