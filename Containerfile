@@ -26,13 +26,16 @@ ARG GO_VERSION=1.26.5
 ARG GO_SHA256_AMD64=5c2c3b16caefa1d968a94c1daca04a7ca301a496d9b086e17ad77bb81393f053
 ARG GO_SHA256_ARM64=fe4789e92b1f33358680864bbe8704289e7bb5fc207d80623c308935bd696d49
 ARG GLAB_VERSION=1.107.0
+ARG RG_VERSION=15.1.0
 
 RUN set -eux; \
     dnf -y install --setopt=install_weak_deps=False --nodocs \
         curl-minimal ca-certificates tar gzip git; \
     case "${TARGETARCH}" in \
-      amd64) GO_SHA256="${GO_SHA256_AMD64}";; \
-      arm64) GO_SHA256="${GO_SHA256_ARM64}";; \
+      amd64) GO_SHA256="${GO_SHA256_AMD64}"; \
+             RG_TRIPLE="x86_64-unknown-linux-musl";; \
+      arm64) GO_SHA256="${GO_SHA256_ARM64}"; \
+             RG_TRIPLE="aarch64-unknown-linux-gnu";; \
       *) echo "unsupported arch: ${TARGETARCH}" >&2; exit 1;; \
     esac; \
     # Go (pinned + per-arch sha256)
@@ -47,7 +50,17 @@ RUN set -eux; \
     GLAB_SHA256=$(grep "glab_${GLAB_VERSION}_linux_${TARGETARCH}.tar.gz" /tmp/glab.sums | awk '{print $1}'); \
     echo "${GLAB_SHA256}  /tmp/glab.tgz" | sha256sum -c -; \
     tar -C /tmp -xzf /tmp/glab.tgz; install -m0755 /tmp/bin/glab /usr/local/bin/glab; \
-    rm -rf /tmp/glab*
+    rm -rf /tmp/glab*; \
+    # ripgrep (not in UBI repos; release binary from GitHub)
+    RG_TAR="ripgrep-${RG_VERSION}-${RG_TRIPLE}.tar.gz"; \
+    curl -fsSLo /tmp/rg.tgz \
+      "https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/${RG_TAR}"; \
+    curl -fsSLo /tmp/rg.sha256 \
+      "https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/${RG_TAR}.sha256"; \
+    echo "$(cat /tmp/rg.sha256)  /tmp/rg.tgz" | sha256sum -c -; \
+    tar -C /tmp -xzf /tmp/rg.tgz; \
+    install -m0755 "/tmp/ripgrep-${RG_VERSION}-${RG_TRIPLE}/rg" /usr/local/bin/rg; \
+    rm -rf /tmp/rg* /tmp/ripgrep-*
 
 # ---------------------------------------------------------------------------
 FROM registry.access.redhat.com/ubi9/ubi:9.6
@@ -75,12 +88,13 @@ RUN set -eux; \
         git openssh-clients ca-certificates \
         gh claude-code \
         python3 python3-pip \
-        jq ripgrep make gcc findutils which tar gzip diffutils; \
+        jq make gcc findutils which tar gzip diffutils; \
     dnf clean all; rm -rf /var/cache/dnf
 
 # --- Go toolchain + glab from the build stage ---
 COPY --from=build /usr/local/go /usr/local/go
 COPY --from=build /usr/local/bin/glab /usr/local/bin/glab
+COPY --from=build /usr/local/bin/rg /usr/local/bin/rg
 
 # --- non-root user (autonomy + --dangerously-skip-permissions require non-root) ---
 RUN set -eux; \
