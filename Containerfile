@@ -57,7 +57,8 @@ RUN set -eux; \
       "https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/${RG_TAR}"; \
     curl -fsSLo /tmp/rg.sha256 \
       "https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/${RG_TAR}.sha256"; \
-    echo "$(cat /tmp/rg.sha256)  /tmp/rg.tgz" | sha256sum -c -; \
+    RG_HASH=$(awk '{print $1}' /tmp/rg.sha256); \
+    echo "${RG_HASH}  /tmp/rg.tgz" | sha256sum -c -; \
     tar -C /tmp -xzf /tmp/rg.tgz; \
     install -m0755 "/tmp/ripgrep-${RG_VERSION}-${RG_TRIPLE}/rg" /usr/local/bin/rg; \
     rm -rf /tmp/rg* /tmp/ripgrep-*
