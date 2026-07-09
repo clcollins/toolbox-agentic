@@ -29,8 +29,17 @@ import os
 # Hosts allowed ALL methods (push, PR/MR, API). Tighten to your repos/instances.
 TRUSTED_HOSTS = {
     "api.anthropic.com",
+    # Vertex AI (Claude via GCP) — ADC token exchange + inference endpoints
+    "oauth2.googleapis.com",
+    "aiplatform.googleapis.com",
+    "us-east5-aiplatform.googleapis.com",
+    "global-aiplatform.googleapis.com",
+    "us-central1-aiplatform.googleapis.com",
+    "europe-west1-aiplatform.googleapis.com",
+    # GitHub
     "github.com", "api.github.com", "codeload.github.com",
     "objects.githubusercontent.com", "uploads.github.com",
+    # GitLab
     "gitlab.com", "registry.gitlab.com",
     # Go modules / checksum db / registries
     "proxy.golang.org", "sum.golang.org", "goproxy.io",
@@ -55,8 +64,20 @@ RESEARCH_METHODS = {"GET", "HEAD"}
 RESEARCH_ALLOW = set()  # e.g. {"pkg.go.dev", "raw.githubusercontent.com", "docs.gitlab.com"}
 
 
+# Suffix patterns for hosts that vary by region (e.g. us-east5-aiplatform.googleapis.com).
+_TRUSTED_SUFFIXES = (
+    "-aiplatform.googleapis.com",
+)
+
+
 def _host(flow: http.HTTPFlow) -> str:
     return (flow.request.pretty_host or "").lower()
+
+
+def _is_trusted(host: str) -> bool:
+    if host in TRUSTED_HOSTS:
+        return True
+    return any(host.endswith(suffix) for suffix in _TRUSTED_SUFFIXES)
 
 
 def http_connect(flow: http.HTTPFlow):
@@ -66,8 +87,7 @@ def http_connect(flow: http.HTTPFlow):
     inner request method), so let it proceed to TLS interception via `request`.
     """
     host = _host(flow)
-    if host in TRUSTED_HOSTS:
-        # mark for TLS passthrough so we don't MITM trusted endpoints
+    if _is_trusted(host):
         flow.metadata["passthrough"] = True
 
 
@@ -75,7 +95,7 @@ def request(flow: http.HTTPFlow):
     host = _host(flow)
     method = flow.request.method.upper()
 
-    if host in TRUSTED_HOSTS:
+    if _is_trusted(host):
         return  # trusted endpoint: allow any method
 
     # RESEARCH class (intercepted): enforce GET/HEAD and optional host allow-list.

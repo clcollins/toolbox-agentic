@@ -15,7 +15,14 @@ Everything here runs BEFORE Claude launches, so it costs zero model tokens:
 No host directories are mounted. All inputs arrive as env / mounted Secrets.
 
 Required env:
-  ANTHROPIC_API_KEY        Claude Code auth (Console key) — or configure Bedrock/Vertex.
+  Claude auth — ONE of the following:
+    ANTHROPIC_API_KEY                 Direct API key (Console).
+    CLAUDE_CODE_USE_VERTEX=1          Vertex AI via Application Default Credentials (ADC).
+      + ANTHROPIC_VERTEX_PROJECT_ID   GCP project with Vertex Claude access.
+      + VERTEXAI_PROJECT              Same project (both required by Claude Code).
+      + VERTEXAI_LOCATION             Vertex region (e.g. "global", "us-east5").
+      + CLOUD_ML_REGION               Same as VERTEXAI_LOCATION (some SDKs read this).
+      + GOOGLE_APPLICATION_CREDENTIALS (optional — path to ADC JSON; default ~/.config/gcloud/).
   AGENT_TASK               Task prompt/plan (or AGENT_TASK_FILE path).
 Repo selection (one or both; deduplicated):
   AGENT_REPOS              Whitespace/newline list of "host/owner/repo[@ref]" specs.
@@ -62,11 +69,32 @@ def run(cmd, **kw):
     return subprocess.run(cmd, **kw)
 
 
+def _has_vertex_auth():
+    """Check whether Vertex AI auth is configured (env vars + ADC credential file)."""
+    if os.environ.get("CLAUDE_CODE_USE_VERTEX") != "1":
+        return False
+    if not os.environ.get("VERTEXAI_PROJECT"):
+        return False
+    adc_path = os.environ.get(
+        "GOOGLE_APPLICATION_CREDENTIALS",
+        str(HOME / ".config/gcloud/application_default_credentials.json"),
+    )
+    return Path(adc_path).is_file()
+
+
 def preflight():
     cache_only = os.environ.get("AGENT_CACHE_ONLY") == "1"
     if not cache_only:
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            die("ANTHROPIC_API_KEY is required (or configure a supported API provider).")
+        has_api_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+        has_vertex = _has_vertex_auth()
+        if has_vertex:
+            log(f"auth: Vertex AI (project={os.environ.get('VERTEXAI_PROJECT')}, "
+                f"location={os.environ.get('VERTEXAI_LOCATION', 'unset')})")
+        elif has_api_key:
+            log("auth: ANTHROPIC_API_KEY")
+        else:
+            die("No Claude auth configured. Provide ANTHROPIC_API_KEY, or set "
+                "CLAUDE_CODE_USE_VERTEX=1 with VERTEXAI_PROJECT + ADC credentials.")
         if not (os.environ.get("AGENT_TASK") or os.environ.get("AGENT_TASK_FILE")):
             die("Provide AGENT_TASK or AGENT_TASK_FILE.")
     if not (os.environ.get("AGENT_REPOS") or os.environ.get("AGENT_CONTROL_REPO")):

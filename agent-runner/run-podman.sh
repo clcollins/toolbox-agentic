@@ -9,7 +9,11 @@
 #   * The agent talks to the internet solely via HTTPS_PROXY -> proxy -> policy.py,
 #     which allow-lists hosts and forces GET-only for research traffic.
 #
-# Required env on the host: ANTHROPIC_API_KEY, GH_TOKEN, GITLAB_TOKEN.
+# Required env on the host (ONE of the following auth methods):
+#   Direct API:  ANTHROPIC_API_KEY
+#   Vertex AI:   CLAUDE_CODE_USE_VERTEX=1 + VERTEXAI_PROJECT + VERTEXAI_LOCATION
+#                + GCP Application Default Credentials (~/.config/gcloud/)
+# Also: GH_TOKEN, GITLAB_TOKEN (for push/PR/MR).
 # Prefer `podman secret` over -e in production; -e is shown here for clarity.
 set -euo pipefail
 
@@ -39,7 +43,24 @@ trap cleanup EXIT
 podman volume create "$HOMEVOL" >/dev/null
 podman volume create "$WORKVOL" >/dev/null
 
-: "${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY}"
+# Validate that at least one auth method is configured
+if [[ -z "${ANTHROPIC_API_KEY:-}" ]] && [[ "${CLAUDE_CODE_USE_VERTEX:-}" != "1" ]]; then
+  echo "ERROR: set ANTHROPIC_API_KEY, or CLAUDE_CODE_USE_VERTEX=1 with VERTEXAI_PROJECT" >&2
+  exit 1
+fi
+
+# Vertex AI: locate Application Default Credentials for mounting into the container
+GCLOUD_ADC="${GOOGLE_APPLICATION_CREDENTIALS:-${HOME}/.config/gcloud/application_default_credentials.json}"
+VERTEX_MOUNT_ARGS=()
+if [[ "${CLAUDE_CODE_USE_VERTEX:-}" == "1" ]]; then
+  if [[ ! -f "$GCLOUD_ADC" ]]; then
+    echo "ERROR: Vertex AI auth requires ADC at $GCLOUD_ADC (run: gcloud auth application-default login)" >&2
+    exit 1
+  fi
+  VERTEX_MOUNT_ARGS=(
+    -v "${GCLOUD_ADC}:/home/agent/.config/gcloud/application_default_credentials.json:ro,Z"
+  )
+fi
 
 # 1) internal (no-egress) network for the agent
 podman network create --internal "$NET" >/dev/null
@@ -79,7 +100,13 @@ podman run --rm --name "$AGENT" \
   -e NO_PROXY="localhost,127.0.0.1" \
   -e SSL_CERT_FILE="/etc/agent/ca/proxy-ca.pem" \
   -e NODE_EXTRA_CA_CERTS="/etc/agent/ca/proxy-ca.pem" \
-  -e ANTHROPIC_API_KEY \
+  -e ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}" \
+  -e CLAUDE_CODE_USE_VERTEX="${CLAUDE_CODE_USE_VERTEX:-}" \
+  -e ANTHROPIC_VERTEX_PROJECT_ID="${ANTHROPIC_VERTEX_PROJECT_ID:-${VERTEXAI_PROJECT:-}}" \
+  -e VERTEXAI_PROJECT="${VERTEXAI_PROJECT:-}" \
+  -e VERTEXAI_LOCATION="${VERTEXAI_LOCATION:-global}" \
+  -e CLOUD_ML_REGION="${CLOUD_ML_REGION:-${VERTEXAI_LOCATION:-global}}" \
+  "${VERTEX_MOUNT_ARGS[@]}" \
   -e GH_TOKEN \
   -e GITLAB_TOKEN \
   -e AGENT_MODE="$AGENT_MODE" \

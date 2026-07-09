@@ -44,6 +44,38 @@ spec:
               value: "online"
             - name: GOPRIVATE
               value: "github.com/clcollins/*"
+            # Vertex AI auth (alternative to ANTHROPIC_API_KEY in the Secret)
+            - name: CLAUDE_CODE_USE_VERTEX
+              valueFrom:
+                secretKeyRef:
+                  name: agent-tokens-EXAMPLE
+                  key: CLAUDE_CODE_USE_VERTEX
+                  optional: true
+            - name: ANTHROPIC_VERTEX_PROJECT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: agent-tokens-EXAMPLE
+                  key: ANTHROPIC_VERTEX_PROJECT_ID
+                  optional: true
+            - name: VERTEXAI_PROJECT
+              valueFrom:
+                secretKeyRef:
+                  name: agent-tokens-EXAMPLE
+                  key: VERTEXAI_PROJECT
+                  optional: true
+            - name: VERTEXAI_LOCATION
+              valueFrom:
+                secretKeyRef:
+                  name: agent-tokens-EXAMPLE
+                  key: VERTEXAI_LOCATION
+                  optional: true
+            - name: CLOUD_ML_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: agent-tokens-EXAMPLE
+                  key: CLOUD_ML_REGION
+                  optional: true
+            # Proxy
             - name: HTTPS_PROXY
               value: "http://agent-egress-proxy.agents.svc:8080"
             - name: HTTP_PROXY
@@ -73,6 +105,10 @@ spec:
             - name: egress-ca
               mountPath: /etc/agent/ca
               readOnly: true
+            # Vertex AI: mount ADC credentials (uncomment for Vertex auth)
+            # - name: gcloud-adc
+            #   mountPath: /home/agent/.config/gcloud
+            #   readOnly: true
       volumes:
         - name: home
           emptyDir:
@@ -87,3 +123,7 @@ spec:
         - name: egress-ca
           configMap:
             name: agent-egress-ca
+        # Vertex AI: ADC credentials Secret (uncomment for Vertex auth)
+        # - name: gcloud-adc
+        #   secret:
+        #     secretName: agent-gcloud-adc
