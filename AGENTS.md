@@ -9,19 +9,18 @@ from the host.
 
 ## Architecture
 
-The project lives under `agent-runner/` and produces one container image plus supporting
-manifests for Podman and Kubernetes deployment.
+The repo produces one container image plus supporting manifests for Podman and
+Kubernetes deployment.
 
 ```
-agent-runner/
-  Containerfile              UBI 9 multi-arch image (amd64/arm64)
-  bootstrap.py               Python entrypoint (runs before Claude, zero model tokens)
-  bin/                        Deterministic shell helpers (pre-approved in settings.json)
-  claude/                     Baked-in Claude Code config (settings.json, CLAUDE.md)
-  egress-proxy/               mitmproxy policy addon for host+method allow-listing
-  k8s/                        Kubernetes Job, NetworkPolicy, Secret template
-  run-podman.sh               Host runner with internal-network proxy enforcement
-  make-offline-cache.sh       Admin tool: bake module+toolchain cache for offline runs
+Containerfile              UBI 9 multi-arch image (amd64/arm64)
+bootstrap.py               Python entrypoint (runs before Claude, zero model tokens)
+bin/                        Deterministic shell helpers (pre-approved in settings.json)
+claude/                     Baked-in Claude Code config (settings.json, CLAUDE.md)
+egress-proxy/               mitmproxy policy addon for host+method allow-listing
+k8s/                        Kubernetes Job, NetworkPolicy, Secret template
+run-podman.sh               Host runner with internal-network proxy enforcement
+make-offline-cache.sh       Admin tool: bake module+toolchain cache for offline runs
 ```
 
 ## Languages and Tools
@@ -109,8 +108,11 @@ then layers the populated GOMODCACHE into a derived `:go-offline` image.
 
 ## Environment Variables
 
+Claude auth (one of):
+- `ANTHROPIC_API_KEY` — direct API key
+- `CLAUDE_CODE_USE_VERTEX=1` + `VERTEXAI_PROJECT` + `VERTEXAI_LOCATION` + GCP ADC — Vertex AI
+
 Required for agent runs:
-- `ANTHROPIC_API_KEY` — Claude API key
 - `AGENT_TASK` or `AGENT_TASK_FILE` — task prompt
 - `AGENT_REPOS` or `AGENT_CONTROL_REPO` — repos to clone
 
@@ -130,11 +132,11 @@ Behavior:
 ## Testing
 
 No automated test suite — this is an infrastructure/packaging project. Verification:
-1. `python3 -m py_compile agent-runner/bootstrap.py`
-2. `bash -n` on all shell scripts in `agent-runner/bin/`
-3. JSON validation of `agent-runner/claude/settings.json`
-4. YAML validation of all `agent-runner/k8s/*.yaml`
-5. Container build: `podman build -t agent-runner:go agent-runner/`
+1. `python3 -m py_compile bootstrap.py`
+2. `bash -n` on all shell scripts in `bin/`
+3. JSON validation of `claude/settings.json`
+4. YAML validation of all `k8s/*.yaml`
+5. Container build: `podman build -t agent-runner:go .`
 
 ## Phase 2 (Planned, Not Implemented)
 
