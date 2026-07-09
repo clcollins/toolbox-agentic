@@ -101,7 +101,7 @@ COPY --from=build /usr/local/bin/rg /usr/local/bin/rg
 RUN set -eux; \
     groupadd -g 1001 agent; \
     useradd -u 1001 -g 1001 -m -d /home/agent -s /bin/bash agent; \
-    mkdir -p /workspace /opt/agent && chown -R 1001:1001 /workspace /home/agent /opt/agent
+    mkdir -p /workspace /opt/agent /home/agent/.config/go && chown -R 1001:1001 /workspace /home/agent /opt/agent
 
 # --- OPTIONAL: prebake Go toolchains for the air-gapped (offline-go) invocation ---
 # Space-separated versions your repos pin, e.g. "go1.24.3 go1.25.7 go1.26.5".
