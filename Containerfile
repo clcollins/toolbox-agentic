@@ -44,7 +44,8 @@ RUN set -eux; \
       "https://gitlab.com/gitlab-org/cli/-/releases/v${GLAB_VERSION}/downloads/glab_${GLAB_VERSION}_linux_${TARGETARCH}.tar.gz"; \
     curl -fsSLo /tmp/glab.sums \
       "https://gitlab.com/gitlab-org/cli/-/releases/v${GLAB_VERSION}/downloads/checksums.txt"; \
-    ( cd /tmp && grep "linux_${TARGETARCH}.tar.gz" glab.sums | sha256sum -c - ); \
+    GLAB_SHA256=$(grep "glab_${GLAB_VERSION}_linux_${TARGETARCH}.tar.gz" /tmp/glab.sums | awk '{print $1}'); \
+    echo "${GLAB_SHA256}  /tmp/glab.tgz" | sha256sum -c -; \
     tar -C /tmp -xzf /tmp/glab.tgz; install -m0755 /tmp/bin/glab /usr/local/bin/glab; \
     rm -rf /tmp/glab*
 
