@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agent-default-deny-egress
+  namespace: agents
+spec:
+  podSelector:
+    matchLabels:
+      app: claude-agent-runner
+  policyTypes:
+    - Egress
+  egress:
+    # Allow DNS resolution (kube-dns / CoreDNS)
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow traffic to the egress policy proxy only
+    - to:
+        - podSelector:
+            matchLabels:
+              app: agent-egress-proxy
+      ports:
+        - protocol: TCP
+          port: 8080

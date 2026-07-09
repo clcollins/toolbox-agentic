@@ -1,0 +1,89 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: agent-run-EXAMPLE
+  namespace: agents
+  labels:
+    app: claude-agent-runner
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: claude-agent-runner
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      # runtimeClassName: gvisor   # uncomment for separate-kernel isolation (gVisor)
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: agent
+          image: localhost/agent-runner:go
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - secretRef:
+                name: agent-tokens-EXAMPLE
+          env:
+            - name: AGENT_REPOS
+              value: "github.com/clcollins/srepd"
+            - name: AGENT_TASK
+              value: "Summarize the repo and propose next steps."
+            - name: AGENT_MODE
+              value: "online"
+            - name: GOPRIVATE
+              value: "github.com/clcollins/*"
+            - name: HTTPS_PROXY
+              value: "http://agent-egress-proxy.agents.svc:8080"
+            - name: HTTP_PROXY
+              value: "http://agent-egress-proxy.agents.svc:8080"
+            - name: NO_PROXY
+              value: "localhost,127.0.0.1"
+            - name: SSL_CERT_FILE
+              value: "/etc/agent/ca/proxy-ca.pem"
+            - name: NODE_EXTRA_CA_CERTS
+              value: "/etc/agent/ca/proxy-ca.pem"
+          resources:
+            requests:
+              cpu: "2"
+              memory: 4Gi
+              ephemeral-storage: 16Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+              ephemeral-storage: 16Gi
+          volumeMounts:
+            - name: home
+              mountPath: /home/agent
+            - name: workspace
+              mountPath: /workspace
+            - name: tmp
+              mountPath: /tmp
+            - name: egress-ca
+              mountPath: /etc/agent/ca
+              readOnly: true
+      volumes:
+        - name: home
+          emptyDir:
+            sizeLimit: 6Gi
+        - name: workspace
+          emptyDir:
+            sizeLimit: 10Gi
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
+        - name: egress-ca
+          configMap:
+            name: agent-egress-ca

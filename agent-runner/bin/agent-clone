@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# agent-clone — clone a repo with credentials already wired by bootstrap.py.
+#
+# Usage: agent-clone host/owner/repo[@ref]
+#   e.g.  agent-clone github.com/clcollins/srepd
+#         agent-clone github.com/clcollins/srepd@fix/issue-42
+#         agent-clone gitlab.com/group/project@v2.1.0
+set -euo pipefail
+
+WORKSPACE="${AGENT_WORKSPACE:-/workspace}"
+
+if [[ $# -lt 1 ]]; then
+  echo "usage: agent-clone host/owner/repo[@ref]" >&2
+  exit 1
+fi
+
+SPEC="$1"
+REF=""
+if [[ "$SPEC" == *@* ]]; then
+  REF="${SPEC##*@}"
+  SPEC="${SPEC%@*}"
+fi
+
+HOST="${SPEC%%/*}"
+PATH_PART="${SPEC#*/}"
+DEST="${WORKSPACE}/${PATH_PART//\//__}"
+
+if [[ -d "$DEST" ]]; then
+  echo "[agent-clone] already cloned: $DEST"
+  exit 0
+fi
+
+git clone --filter=blob:none "https://${SPEC}.git" "$DEST"
+
+if [[ -n "$REF" ]]; then
+  git -C "$DEST" checkout "$REF"
+fi
+
+echo "[agent-clone] cloned $SPEC -> $DEST"

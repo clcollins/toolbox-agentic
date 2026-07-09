@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# agent-open-pr — push the current branch and open a GitHub PR with attribution.
+#
+# Usage: agent-open-pr "PR title" ["PR body"]
+#   Run from inside a cloned repo directory.
+#   Pushes the current branch, opens a PR against the default branch.
+set -euo pipefail
+
+if [[ $# -lt 1 ]]; then
+  echo "usage: agent-open-pr \"PR title\" [\"PR body\"]" >&2
+  exit 1
+fi
+
+TITLE="$1"
+BODY="${2:-}"
+
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+DEFAULT_BRANCH="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')"
+
+if [[ "$BRANCH" == "$DEFAULT_BRANCH" ]]; then
+  echo "[agent-open-pr] ERROR: on default branch ($DEFAULT_BRANCH); create a feature branch first" >&2
+  exit 1
+fi
+
+ATTRIBUTION=$'\n---\n\U0001f916 Generated with [Claude Code](https://claude.com/claude-code)'
+
+if [[ -n "$BODY" ]]; then
+  FULL_BODY="${BODY}${ATTRIBUTION}"
+else
+  FULL_BODY="${ATTRIBUTION}"
+fi
+
+git push --set-upstream origin "$BRANCH"
+
+gh pr create \
+  --title "$TITLE" \
+  --body "$FULL_BODY" \
+  --base "$DEFAULT_BRANCH" \
+  --head "$BRANCH"
+
+echo "[agent-open-pr] PR opened for $BRANCH -> $DEFAULT_BRANCH"
