@@ -28,6 +28,7 @@ import http.client
 import http.server
 import os
 import select
+import signal
 import socket
 import socketserver
 import sys
@@ -186,6 +187,10 @@ def main():
     print(f"[proxy] trusted hosts: {len(TRUSTED_HOSTS)}", flush=True)
     profile = os.environ.get("EGRESS_PROFILE", "default")
     print(f"[proxy] egress profile: {profile}", flush=True)
+    def _shutdown(*_):
+        print("[proxy] shutting down", flush=True)
+        os._exit(0)
+    signal.signal(signal.SIGTERM, _shutdown)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

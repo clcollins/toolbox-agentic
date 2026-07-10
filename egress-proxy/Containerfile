@@ -4,12 +4,12 @@ LABEL org.opencontainers.image.title="agent-egress-proxy" \
       org.opencontainers.image.description="Stdlib-only egress policy proxy for the Claude agent runner"
 
 RUN microdnf install -y --nodocs python3 \
-    && microdnf clean all
+    && microdnf clean all \
+    && groupadd -g 1001 proxy \
+    && useradd -u 1001 -g 1001 -s /sbin/nologin proxy \
+    && mkdir -p /opt/proxy
 
-COPY policy.py /opt/proxy/policy.py
-
-RUN groupadd -g 1001 proxy \
-    && useradd -u 1001 -g 1001 -s /sbin/nologin proxy
+COPY --chown=1001:1001 policy.py /opt/proxy/policy.py
 
 USER 1001
 EXPOSE 8080

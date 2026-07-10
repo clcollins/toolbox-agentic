@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Run one hardened agent on the host with Podman.
 #
-# Network model (enforces "the proxy is the only way out" without host nftables):
-#   * agent-internal  = `podman network create --internal`  -> NO external gateway.
-#   * The proxy container is attached to BOTH agent-internal AND the default
-#     (external) network, so it can reach the internet; the agent is on
-#     agent-internal ONLY and can reach nothing except the proxy.
-#   * The agent talks to the internet solely via HTTPS_PROXY -> proxy -> policy.py,
-#     which allow-lists hosts and denies CONNECT to untrusted hosts entirely.
+# Network model: both the proxy and agent run on a per-run podman network.
+# The agent routes all traffic through HTTPS_PROXY/HTTP_PROXY -> proxy ->
+# policy.py, which allow-lists hosts and denies CONNECT to untrusted hosts.
+#
+# On rootful podman you can use `--internal` networks for hard network
+# isolation; rootless podman's DNS resolver doesn't work across internal +
+# external networks, so we use a standard bridge and rely on the proxy env
+# vars to enforce the egress path.
 #
 # Required env on the host (ONE of the following auth methods):
 #   Direct API:  ANTHROPIC_API_KEY
@@ -23,7 +24,7 @@ PROXY_IMAGE="${PROXY_IMAGE:-localhost/agent-egress-proxy:latest}"
 # toolchains come from the image's pre-baked cache; the proxy denies package/toolchain hosts).
 AGENT_MODE="${AGENT_MODE:-online}"
 EGRESS_PROFILE=""; [[ "$AGENT_MODE" == "offline-go" ]] && EGRESS_PROFILE="offline-go"
-NET="agent-internal-$$"
+NET="agent-net-$$"
 PROXY="agent-proxy-$$"
 AGENT="agent-$$"
 # Disk-backed, per-run ephemeral volumes for the big writable dirs. These hold the
@@ -60,19 +61,24 @@ if [[ "${CLAUDE_CODE_USE_VERTEX:-}" == "1" ]]; then
   )
 fi
 
-# 1) internal (no-egress) network for the agent
-podman network create --internal "$NET" >/dev/null
+# 1) per-run network for the proxy + agent
+podman network create "$NET" >/dev/null
 
-# 2) egress policy proxy: on internal net (for the agent) + default net (for the internet)
+# 2) egress policy proxy
 podman run -d --name "$PROXY" \
   --network "$NET" \
   --cap-drop=ALL --security-opt no-new-privileges \
   -e EGRESS_PROFILE="$EGRESS_PROFILE" \
   "$PROXY_IMAGE" >/dev/null
-podman network connect podman "$PROXY"           # give the proxy real egress
-sleep 1                                            # let the proxy bind its port
+sleep 1
 PROXY_IP="$(podman inspect "$PROXY" \
   --format "{{ (index .NetworkSettings.Networks \"$NET\").IPAddress }}")"
+
+if [[ -z "$PROXY_IP" ]]; then
+  echo "ERROR: could not determine proxy IP address" >&2
+  podman logs "$PROXY" >&2
+  exit 1
+fi
 
 # 3) the agent — maximally fenced, non-root, read-only rootfs, no host mounts.
 # NOT exec'd, so the cleanup trap fires (removes proxy, network, volumes) on exit.
