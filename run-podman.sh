@@ -56,8 +56,9 @@ if [[ "${CLAUDE_CODE_USE_VERTEX:-}" == "1" ]]; then
     echo "ERROR: Vertex AI auth requires ADC at $GCLOUD_ADC (run: gcloud auth application-default login)" >&2
     exit 1
   fi
+  GCLOUD_DIR="$(dirname "$GCLOUD_ADC")"
   VERTEX_MOUNT_ARGS=(
-    -v "${GCLOUD_ADC}:/home/agent/.config/gcloud/application_default_credentials.json:ro,Z"
+    -v "${GCLOUD_DIR}:/home/agent/.config/gcloud:z"
   )
 fi
 
