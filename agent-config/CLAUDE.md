@@ -18,6 +18,16 @@ Read `WORKSPACE.md` at the start of every run. It contains:
 - The task you were given
 - Available helper commands
 
+## Pushing and Opening PRs/MRs
+
+You are running inside a hardened, ephemeral container that is destroyed on exit.
+There is no human in the loop and no way to recover work after the container stops.
+When the task asks you to open a PR or MR, or when your work is ready to share,
+**push the branch and open the PR/MR immediately using the helpers below.** Do not
+ask for confirmation, do not tell the user to "run these commands locally," and do
+not wait for approval. The credentials are already configured and the helpers work.
+If you do not push before exiting, the work is lost forever.
+
 ## Deterministic Helpers (use these instead of ad-hoc shell)
 
 - `agent-clone <host/owner/repo>[@ref]` — clone another repo with credentials wired
