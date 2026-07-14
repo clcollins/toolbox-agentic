@@ -31,7 +31,7 @@ Optional env:
   GH_TOKEN / GITLAB_TOKEN  Scoped tokens (see README for minimal scopes).
   GITLAB_HOST              Self-managed GitLab host (default gitlab.com).
   GIT_AUTHOR_NAME/EMAIL    Commit identity (defaults provided).
-  GOPRIVATE                e.g. github.com/clcollins/*,gitlab.com/yourgroup/*
+  GOPRIVATE                e.g. github.com/your-org/*,gitlab.com/your-group/*
   AGENT_WARM_TOOLCHAINS=1  Pre-download each repo's required Go toolchain (surfaces
                            version issues early; else GOTOOLCHAIN=auto fetches on demand).
   AGENT_WARM_MODCACHE=1    Also run `go mod download` per module.
@@ -69,6 +69,26 @@ def run(cmd, **kw):
     return subprocess.run(cmd, **kw)
 
 
+def materialize_adc():
+    """Write ADC credentials from env var to disk (avoids bind-mount SELinux issues).
+
+    run-podman.sh reads the host ADC file and passes its content as
+    GOOGLE_APPLICATION_CREDENTIALS_JSON. We write it to the writable home volume
+    (container_file_t SELinux context) so the Google auth library can find it.
+    """
+    adc_json = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+    if not adc_json:
+        return
+    adc_dir = HOME / ".config" / "gcloud"
+    adc_dir.mkdir(parents=True, exist_ok=True)
+    adc_path = adc_dir / "application_default_credentials.json"
+    adc_path.write_text(adc_json)
+    os.chmod(adc_path, 0o600)
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(adc_path)
+    del os.environ["GOOGLE_APPLICATION_CREDENTIALS_JSON"]
+    log("materialized ADC credentials from env var")
+
+
 def _has_vertex_auth():
     """Check whether Vertex AI auth is configured (env vars + ADC credential file)."""
     if os.environ.get("CLAUDE_CODE_USE_VERTEX") != "1":
@@ -95,8 +115,12 @@ def preflight():
         else:
             die("No Claude auth configured. Provide ANTHROPIC_API_KEY, or set "
                 "CLAUDE_CODE_USE_VERTEX=1 with VERTEXAI_PROJECT + ADC credentials.")
-        if not (os.environ.get("AGENT_TASK") or os.environ.get("AGENT_TASK_FILE")):
+        task = (os.environ.get("AGENT_TASK") or "").strip()
+        task_file = (os.environ.get("AGENT_TASK_FILE") or "").strip()
+        if not (task or task_file):
             die("Provide AGENT_TASK or AGENT_TASK_FILE.")
+        if task_file and not Path(task_file).is_file():
+            die(f"AGENT_TASK_FILE does not exist: {task_file}")
     if not (os.environ.get("AGENT_REPOS") or os.environ.get("AGENT_CONTROL_REPO")):
         die("Provide AGENT_REPOS or AGENT_CONTROL_REPO.")
     WORKSPACE.mkdir(parents=True, exist_ok=True)
@@ -144,8 +168,7 @@ def configure_go_mode():
     modcache = Path(os.environ.get("GOMODCACHE", str(HOME / "go/pkg/mod")))
     if src.is_dir() and any(src.iterdir()):
         modcache.mkdir(parents=True, exist_ok=True)
-        # cp -a preserves the module cache's read-only perms/layout that `go` expects
-        run(["bash", "-c", f'cp -a "{src}/." "{modcache}/"'])
+        run(["cp", "-a", str(src) + "/.", str(modcache) + "/"])
         log(f"offline-go: seeded module/toolchain cache {src} -> {modcache}")
     else:
         log(f"offline-go: WARNING no pre-baked cache at {src}; builds may fail offline")
@@ -158,15 +181,27 @@ def configure_go_mode():
 
 def repo_specs():
     """Yield deduped 'host/owner/repo[@ref]' specs from AGENT_REPOS and/or a control repo."""
-    seen = set()
+    seen = {}  # base_spec -> full_tok (with @ref if any)
     def emit(tok):
         tok = tok.strip()
-        if tok and not tok.startswith("#") and tok not in seen:
-            seen.add(tok); return tok
-        return None
+        if not tok or tok.startswith("#"):
+            return None
+        base = tok.split("@", 1)[0]
+        if base in seen:
+            if seen[base] != tok:
+                die(f"repo '{base}' specified with conflicting refs: "
+                    f"'{seen[base]}' vs '{tok}'. Multiple refs of the same repo "
+                    f"is not currently supported.")
+            return None
+        seen[base] = tok
+        return tok
     if os.environ.get("AGENT_CONTROL_REPO"):
         ctrl = WORKSPACE / ".control"
-        _git_clone("https://" + os.environ["AGENT_CONTROL_REPO"].removeprefix("https://"), ctrl)
+        ctrl_url = "https://" + os.environ["AGENT_CONTROL_REPO"].removeprefix("https://")
+        try:
+            _git_clone(ctrl_url, ctrl)
+        except subprocess.CalledProcessError as e:
+            die(f"failed to clone control repo '{ctrl_url}': {e}")
         overlay = ctrl / ".claude"
         if overlay.is_dir():
             shutil.copytree(overlay, CLAUDE_CFG, dirs_exist_ok=True)
@@ -193,7 +228,7 @@ def clone_one(spec):
     if "@" in spec:
         spec, ref = spec.split("@", 1)
     host, _, path = spec.partition("/")
-    dest = WORKSPACE / path.replace("/", "__")
+    dest = WORKSPACE / f"{host}__{path.replace('/', '__')}"
     try:
         _git_clone(f"https://{host}/{path}.git", dest)
         if ref:
@@ -316,6 +351,7 @@ def launch_claude(task):
 
 
 def main():
+    materialize_adc()
     preflight()
     seed_claude_config()
     configure_git()

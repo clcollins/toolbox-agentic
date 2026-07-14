@@ -17,9 +17,9 @@ Containerfile              UBI 9 multi-arch image (amd64/arm64)
 bootstrap.py               Python entrypoint (runs before Claude, zero model tokens)
 bin/                        Deterministic shell helpers (pre-approved in settings.json)
 claude/                     Baked-in Claude Code config (settings.json, CLAUDE.md)
-egress-proxy/               mitmproxy policy addon for host+method allow-listing
+egress-proxy/               stdlib-only egress policy proxy for host+method allow-listing
 k8s/                        Kubernetes Job, NetworkPolicy, Secret template
-run-podman.sh               Host runner with internal-network proxy enforcement
+run-podman.sh               Host runner with per-run network and proxy enforcement
 make-offline-cache.sh       Admin tool: bake module+toolchain cache for offline runs
 ```
 
@@ -28,7 +28,7 @@ make-offline-cache.sh       Admin tool: bake module+toolchain cache for offline 
 - **Container image**: RHEL UBI 9 base, Containerfile (Podman, not Docker)
 - **Entrypoint**: Python 3 (`bootstrap.py`) — no external dependencies
 - **Helper scripts**: Bash (`bin/agent-*`)
-- **Proxy policy**: Python 3 (`egress-proxy/policy.py`) — mitmproxy addon
+- **Proxy policy**: Python 3 (`egress-proxy/policy.py`) — stdlib-only egress proxy
 - **Build system**: Podman multi-arch builds; no Makefile (image-only project)
 - **Target workloads**: Go development (Go 1.26.5 bundled, GOTOOLCHAIN=auto)
 - **Orchestration**: Kubernetes (kubeadm) and Podman on Fedora
@@ -77,9 +77,9 @@ Operating instructions baked into the agent: workspace orientation, helper usage
 commit trailer convention (`Co-Authored-By`), security boundaries.
 
 ### `egress-proxy/policy.py`
-mitmproxy addon implementing two traffic classes:
-- Trusted hosts (GitHub, GitLab, Anthropic, Go proxy): all methods allowed (TLS passthrough)
-- Everything else: GET/HEAD only (TLS-terminated, method-inspected)
+Stdlib-only HTTP proxy implementing two traffic classes:
+- Trusted hosts (GitHub, GitLab, Anthropic, Go proxy): all methods allowed (CONNECT tunnel)
+- Everything else: CONNECT denied; plain HTTP GET/HEAD only
 Supports offline-go profile that strips package/toolchain hosts from trusted set.
 
 ### `k8s/job.yaml`
@@ -98,9 +98,9 @@ Template for per-run scoped tokens (ANTHROPIC_API_KEY, GH_TOKEN, GITLAB_TOKEN).
 Kustomize patch overlay to switch a Job to air-gapped (offline-go) mode.
 
 ### `run-podman.sh`
-Host runner script. Creates an internal Podman network (no gateway), dual-homes the
-proxy container, and runs the agent on the internal network only. Cleanup trap removes
-all resources on exit.
+Host runner script. Creates a per-run Podman network, starts the proxy, and runs the
+agent with HTTPS_PROXY/HTTP_PROXY pointing at the proxy. Cleanup trap removes all
+resources on exit.
 
 ### `make-offline-cache.sh`
 Admin tool for building the offline Go cache image. Runs the agent in cache-only mode,

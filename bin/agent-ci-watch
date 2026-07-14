@@ -17,24 +17,25 @@ case "$PROVIDER" in
     SHA="$(git rev-parse HEAD)"
     echo "[agent-ci-watch] watching GitHub checks for $BRANCH ($SHA)..."
     while [[ $ELAPSED -lt $TIMEOUT ]]; do
-      STATUS="$(gh run list --branch "$BRANCH" --limit 1 --json status,conclusion --jq '.[0] // empty')"
-      if [[ -z "$STATUS" ]]; then
+      RUNS="$(gh run list --branch "$BRANCH" --json status,conclusion --jq '.' 2>/dev/null)"
+      if [[ -z "$RUNS" ]] || [[ "$RUNS" == "[]" ]]; then
         echo "[agent-ci-watch] no runs found yet, waiting..."
         sleep "$POLL_INTERVAL"
         ELAPSED=$((ELAPSED + POLL_INTERVAL))
         continue
       fi
-      RUN_STATUS="$(echo "$STATUS" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("status",""))')"
-      CONCLUSION="$(echo "$STATUS" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("conclusion",""))')"
-      if [[ "$RUN_STATUS" == "completed" ]]; then
-        echo "[agent-ci-watch] CI completed: $CONCLUSION"
-        if [[ "$CONCLUSION" == "success" ]]; then
-          exit 0
-        else
+      TOTAL="$(echo "$RUNS" | jq 'length')"
+      COMPLETED="$(echo "$RUNS" | jq '[.[] | select(.status == "completed")] | length')"
+      FAILED="$(echo "$RUNS" | jq '[.[] | select(.status == "completed" and .conclusion != "success")] | length')"
+      if [[ "$COMPLETED" -eq "$TOTAL" ]]; then
+        if [[ "$FAILED" -gt 0 ]]; then
+          echo "[agent-ci-watch] CI completed: $FAILED/$TOTAL workflow(s) failed"
           exit 1
         fi
+        echo "[agent-ci-watch] CI completed: all $TOTAL workflow(s) succeeded"
+        exit 0
       fi
-      echo "[agent-ci-watch] status=$RUN_STATUS, waiting ${POLL_INTERVAL}s (${ELAPSED}s/${TIMEOUT}s)..."
+      echo "[agent-ci-watch] $COMPLETED/$TOTAL completed, waiting ${POLL_INTERVAL}s (${ELAPSED}s/${TIMEOUT}s)..."
       sleep "$POLL_INTERVAL"
       ELAPSED=$((ELAPSED + POLL_INTERVAL))
     done
@@ -46,7 +47,7 @@ case "$PROVIDER" in
     echo "[agent-ci-watch] watching GitLab pipeline for $BRANCH..."
     while [[ $ELAPSED -lt $TIMEOUT ]]; do
       PIPELINE="$(glab ci status --branch "$BRANCH" --output json 2>/dev/null || echo '{}')"
-      STATUS="$(echo "$PIPELINE" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("status","unknown"))' 2>/dev/null || echo "unknown")"
+      STATUS="$(echo "$PIPELINE" | jq -r '.status // "unknown"' 2>/dev/null || echo "unknown")"
       case "$STATUS" in
         success)
           echo "[agent-ci-watch] pipeline succeeded"

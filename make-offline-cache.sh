@@ -12,7 +12,7 @@
 #
 # Usage:
 #   GH_TOKEN=... GITLAB_TOKEN=... \
-#   REPOS="github.com/clcollins/srepd github.com/clcollins/mnemo" \
+#   REPOS="github.com/your-org/repo-a github.com/your-org/repo-b" \
 #   ./make-offline-cache.sh
 set -euo pipefail
 

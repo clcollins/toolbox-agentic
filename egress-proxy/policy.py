@@ -26,6 +26,7 @@ Env:
 """
 import http.client
 import http.server
+import ipaddress
 import os
 import select
 import signal
@@ -67,6 +68,18 @@ if os.environ.get("EGRESS_PROFILE") == "offline-go":
 RESEARCH_METHODS = {"GET", "HEAD"}
 
 
+def _is_private_host(host):
+    """Return True if host resolves to a private/loopback/link-local address."""
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        try:
+            addr = ipaddress.ip_address(socket.getaddrinfo(host, None, socket.AF_UNSPEC, socket.SOCK_STREAM)[0][4][0])
+        except (socket.gaierror, IndexError, ValueError):
+            return False
+    return addr.is_private or addr.is_loopback or addr.is_link_local
+
+
 def _is_trusted(host):
     host = host.lower().split(":")[0]
     if host in TRUSTED_HOSTS:
@@ -102,7 +115,15 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
     def do_CONNECT(self):
         host_port = self.path
         host = host_port.split(":")[0]
-        port = int(host_port.split(":")[1]) if ":" in host_port else 443
+        try:
+            port = int(host_port.split(":")[1]) if ":" in host_port else 443
+        except (ValueError, IndexError):
+            self.send_error(400, f"malformed CONNECT target: {host_port}")
+            return
+
+        if _is_private_host(host):
+            self.send_error(403, f"egress denied: CONNECT to private/internal address {host}")
+            return
 
         if not _is_trusted(host):
             self.send_error(403, f"egress denied: CONNECT to untrusted host {host}")
@@ -125,6 +146,10 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
         port = parsed.port or 80
         method = self.command
 
+        if _is_private_host(host):
+            self.send_error(403, f"egress denied: request to private/internal address {host}")
+            return
+
         if not _is_trusted(host) and method not in RESEARCH_METHODS:
             self.send_error(
                 405,
@@ -136,7 +161,11 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
         if parsed.query:
             path = f"{path}?{parsed.query}"
 
-        content_length = int(self.headers.get("Content-Length", 0))
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            self.send_error(400, "invalid Content-Length header")
+            return
         body = self.rfile.read(content_length) if content_length > 0 else None
 
         headers = {k: v for k, v in self.headers.items()

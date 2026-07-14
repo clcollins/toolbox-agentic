@@ -88,7 +88,7 @@ RUN set -eux; \
     dnf -y install --setopt=install_weak_deps=False --nodocs \
         git openssh-clients ca-certificates \
         gh claude-code \
-        python3 python3-pip \
+        python3 \
         jq make gcc findutils which tar gzip diffutils; \
     dnf clean all; rm -rf /var/cache/dnf
 

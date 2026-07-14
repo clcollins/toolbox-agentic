@@ -48,18 +48,18 @@ if [[ -z "${ANTHROPIC_API_KEY:-}" ]] && [[ "${CLAUDE_CODE_USE_VERTEX:-}" != "1" 
   exit 1
 fi
 
-# Vertex AI: locate Application Default Credentials for mounting into the container
+# Vertex AI: read ADC credentials into an env var so bootstrap.py can write them
+# to disk inside the container's writable home volume. Bind-mounting host files
+# fails under SELinux (container_t cannot read user_home_t/user_tmp_t) and the
+# :z/:Z relabel flags do not work reliably from toolbx via flatpak-spawn.
 GCLOUD_ADC="${GOOGLE_APPLICATION_CREDENTIALS:-${HOME}/.config/gcloud/application_default_credentials.json}"
-VERTEX_MOUNT_ARGS=()
+ADC_JSON=""
 if [[ "${CLAUDE_CODE_USE_VERTEX:-}" == "1" ]]; then
   if [[ ! -f "$GCLOUD_ADC" ]]; then
     echo "ERROR: Vertex AI auth requires ADC at $GCLOUD_ADC (run: gcloud auth application-default login)" >&2
     exit 1
   fi
-  GCLOUD_DIR="$(dirname "$GCLOUD_ADC")"
-  VERTEX_MOUNT_ARGS=(
-    -v "${GCLOUD_DIR}:/home/agent/.config/gcloud:z"
-  )
+  ADC_JSON="$(cat "$GCLOUD_ADC")"
 fi
 
 # 1) per-run network for the proxy + agent
@@ -103,12 +103,19 @@ podman run --rm --name "$AGENT" \
   -e VERTEXAI_PROJECT="${VERTEXAI_PROJECT:-}" \
   -e VERTEXAI_LOCATION="${VERTEXAI_LOCATION:-global}" \
   -e CLOUD_ML_REGION="${CLOUD_ML_REGION:-${VERTEXAI_LOCATION:-global}}" \
-  "${VERTEX_MOUNT_ARGS[@]}" \
+  -e GOOGLE_APPLICATION_CREDENTIALS_JSON="${ADC_JSON}" \
   -e GH_TOKEN \
   -e GITLAB_TOKEN \
   -e AGENT_MODE="$AGENT_MODE" \
   -e AGENT_GOCACHE_SRC="${AGENT_GOCACHE_SRC:-/opt/go-cache}" \
-  -e GOPRIVATE="${GOPRIVATE:-github.com/clcollins/*}" \
-  -e AGENT_REPOS="${AGENT_REPOS:-github.com/clcollins/srepd}" \
-  -e AGENT_TASK="${AGENT_TASK:-Summarize the repo and propose next steps.}" \
+  ${GOPRIVATE:+-e GOPRIVATE="$GOPRIVATE"} \
+  -e AGENT_REPOS="${AGENT_REPOS:?set AGENT_REPOS='host/owner/repo ...'}" \
+  -e AGENT_TASK="${AGENT_TASK:?set AGENT_TASK='your prompt'}" \
+  ${AGENT_TASK_FILE:+-e AGENT_TASK_FILE="$AGENT_TASK_FILE"} \
+  ${AGENT_CONTROL_REPO:+-e AGENT_CONTROL_REPO="$AGENT_CONTROL_REPO"} \
+  ${AGENT_WARM_TOOLCHAINS:+-e AGENT_WARM_TOOLCHAINS="$AGENT_WARM_TOOLCHAINS"} \
+  ${AGENT_WARM_MODCACHE:+-e AGENT_WARM_MODCACHE="$AGENT_WARM_MODCACHE"} \
+  ${AGENT_GO_WORK:+-e AGENT_GO_WORK="$AGENT_GO_WORK"} \
+  ${AGENT_INTERACTIVE:+-e AGENT_INTERACTIVE="$AGENT_INTERACTIVE"} \
+  ${AGENT_CACHE_ONLY:+-e AGENT_CACHE_ONLY="$AGENT_CACHE_ONLY"} \
   "$IMAGE"
