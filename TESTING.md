@@ -13,9 +13,9 @@ Individual targets:
 | Target | What it runs |
 |--------|-------------|
 | `make lint` | Python (ruff, py_compile), shell (shellcheck, bash -n), Containerfile (hadolint), K8s (kubeconform) |
-| `make test-python` | pytest unit tests (bootstrap.py, policy.py) |
+| `make test-python` | pytest unit tests (entrypoint.py, policy.py) |
 | `make test-integration` | pytest integration tests (real proxy server, SSRF, CONNECT) |
-| `make test-shell` | bats tests for bin/agent-* scripts and run-podman.sh |
+| `make test-shell` | bats tests for bin/agent-* scripts and scripts/run-podman.sh |
 | `make test-security` | security contract + cross-file consistency tests |
 | `make build` | podman build both images |
 
@@ -37,7 +37,7 @@ ANTHROPIC_API_KEY="sk-ant-..." \
 GH_TOKEN="ghp_..." \
 AGENT_REPOS="github.com/owner/repo" \
 AGENT_TASK="Summarize the repo and propose next steps." \
-  ./run-podman.sh
+  ./scripts/run-podman.sh
 
 # 3. Or with Vertex AI
 CLAUDE_CODE_USE_VERTEX=1 \
@@ -46,7 +46,7 @@ VERTEXAI_LOCATION="global" \
 GH_TOKEN="ghp_..." \
 AGENT_REPOS="github.com/owner/repo" \
 AGENT_TASK="Summarize the repo and propose next steps." \
-  ./run-podman.sh
+  ./scripts/run-podman.sh
 ```
 
 ### Manual proxy hardening (HTTPie)

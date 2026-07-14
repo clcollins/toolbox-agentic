@@ -59,7 +59,7 @@ independent of Unix permissions.
 task, repo list) arrive as environment variables. All writable storage is on ephemeral
 volumes that are destroyed when the container exits.
 
-**Resource limits** (Podman defaults in `run-podman.sh`):
+**Resource limits** (Podman defaults in `scripts/run-podman.sh`):
 - Memory: 8Gi (no swap)
 - CPUs: 4
 - PIDs: 512
@@ -109,7 +109,7 @@ bypassed by ignoring proxy environment variables.
 
 ### Podman Network Model
 
-On Podman, `run-podman.sh` creates a per-run network and sets `HTTPS_PROXY`/`HTTP_PROXY`
+On Podman, `scripts/run-podman.sh` creates a per-run network and sets `HTTPS_PROXY`/`HTTP_PROXY`
 environment variables. Standard HTTP clients (git, curl, Go toolchain, Claude Code)
 respect these and route through the proxy. Rootful podman can additionally use
 `--internal` networks to remove the default gateway entirely; rootless podman uses a
@@ -127,7 +127,7 @@ via environment variables (Podman) or Kubernetes Secrets:
 - `GH_TOKEN` — GitHub fine-grained PAT
 - `GITLAB_TOKEN` — GitLab PAT or group token
 
-`bootstrap.py` wires these into the appropriate credential helpers (`gh auth setup-git`,
+`entrypoint.py` wires these into the appropriate credential helpers (`gh auth setup-git`,
 `glab auth git-credential`) before cloning, so git operations use scoped tokens without
 the tokens appearing in clone URLs or git config.
 
@@ -148,9 +148,9 @@ For Vertex AI authentication, GCP Application Default Credentials must reach the
 container. Bind-mounting host files fails under SELinux because the container process
 (`container_t`) cannot read host files (`user_home_t` / `user_tmp_t`).
 
-The solution: `run-podman.sh` reads the ADC JSON with `cat` and passes it as the
+The solution: `scripts/run-podman.sh` reads the ADC JSON with `cat` and passes it as the
 `GOOGLE_APPLICATION_CREDENTIALS_JSON` environment variable. Inside the container,
-`bootstrap.py`'s `materialize_adc()` writes it to the writable home volume (which has
+`entrypoint.py`'s `materialize_adc()` writes it to the writable home volume (which has
 `container_file_t` SELinux context), sets `GOOGLE_APPLICATION_CREDENTIALS` to point at
 the written file, and **deletes the env var** to limit the exposure window.
 
@@ -172,7 +172,7 @@ a Secret volume directly (K8s Secrets get correct SELinux contexts automatically
 ]
 ```
 
-This is defense-in-depth — the credentials at these paths are injected by `bootstrap.py`
+This is defense-in-depth — the credentials at these paths are injected by `entrypoint.py`
 for git operations, but Claude should never read or modify them directly.
 
 ## Claude Code Permissions

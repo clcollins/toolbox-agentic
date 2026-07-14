@@ -34,19 +34,19 @@ def _clean_env(monkeypatch):
 
 
 @pytest.fixture
-def bootstrap(monkeypatch, tmp_path):
-    """Import bootstrap.py with patched HOME and WORKSPACE."""
+def entrypoint(monkeypatch, tmp_path):
+    """Import entrypoint.py with patched HOME and WORKSPACE."""
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.setenv("AGENT_WORKSPACE", str(tmp_path / "workspace"))
     (tmp_path / "home").mkdir()
     (tmp_path / "workspace").mkdir()
 
-    if "bootstrap" in sys.modules:
-        del sys.modules["bootstrap"]
+    if "entrypoint" in sys.modules:
+        del sys.modules["entrypoint"]
 
     sys.path.insert(0, str(REPO_ROOT))
     try:
-        import bootstrap as mod
+        import entrypoint as mod
 
         monkeypatch.setattr(mod, "HOME", tmp_path / "home")
         monkeypatch.setattr(mod, "WORKSPACE", tmp_path / "workspace")
@@ -54,8 +54,8 @@ def bootstrap(monkeypatch, tmp_path):
         yield mod
     finally:
         sys.path.remove(str(REPO_ROOT))
-        if "bootstrap" in sys.modules:
-            del sys.modules["bootstrap"]
+        if "entrypoint" in sys.modules:
+            del sys.modules["entrypoint"]
 
 
 @pytest.fixture

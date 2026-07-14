@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Build CI container image
-        run: podman build -f test/Containerfile.ci -t ${{ env.CI_IMAGE }} .
+        run: podman build -f ci/Containerfile -t ${{ env.CI_IMAGE }} .
       - name: Save CI image
         run: podman save ${{ env.CI_IMAGE }} -o /tmp/ci-image.tar
       - name: Upload CI image artifact

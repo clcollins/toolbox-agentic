@@ -13,7 +13,7 @@
 # Usage:
 #   GH_TOKEN=... GITLAB_TOKEN=... \
 #   REPOS="github.com/your-org/repo-a github.com/your-org/repo-b" \
-#   ./make-offline-cache.sh
+#   ./scripts/make-offline-cache.sh
 set -euo pipefail
 
 BASE_IMAGE="${BASE_IMAGE:-localhost/agent-runner:go}"
@@ -28,7 +28,7 @@ trap cleanup EXIT
 podman volume create "$CVOL" >/dev/null
 
 # 1) ONLINE builder: clone repos + warm toolchains + download all module deps into the
-#    volume. AGENT_CACHE_ONLY makes bootstrap.py stop after warming (no Claude, no token).
+#    volume. AGENT_CACHE_ONLY makes entrypoint.py stop after warming (no Claude, no token).
 podman run --rm --name "cachebuild-$$" \
   -e GH_TOKEN -e GITLAB_TOKEN \
   -e AGENT_MODE=online \
@@ -46,4 +46,4 @@ buildah copy --chown 1001:1001 "$ctr" "$(podman volume inspect "$CVOL" -f '{{.Mo
 buildah commit "$ctr" "$OUT_IMAGE"
 buildah rm "$ctr" >/dev/null
 
-echo "built $OUT_IMAGE  (run offline with IMAGE=$OUT_IMAGE AGENT_MODE=offline-go ./run-podman.sh)"
+echo "built $OUT_IMAGE  (run offline with IMAGE=$OUT_IMAGE AGENT_MODE=offline-go ./scripts/run-podman.sh)"

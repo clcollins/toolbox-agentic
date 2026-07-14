@@ -58,11 +58,11 @@ MODULE_RE = re.compile(r"^module\s+(\S+)", re.M)
 
 
 def log(msg):
-    print(f"[bootstrap] {msg}", flush=True)
+    print(f"[entrypoint] {msg}", flush=True)
 
 
 def die(msg, code=1):
-    print(f"[bootstrap][FATAL] {msg}", file=sys.stderr, flush=True)
+    print(f"[entrypoint][FATAL] {msg}", file=sys.stderr, flush=True)
     sys.exit(code)
 
 
@@ -74,7 +74,7 @@ def run(cmd, **kw):
 def materialize_adc():
     """Write ADC credentials from env var to disk (avoids bind-mount SELinux issues).
 
-    run-podman.sh reads the host ADC file and passes its content as
+    scripts/run-podman.sh reads the host ADC file and passes its content as
     GOOGLE_APPLICATION_CREDENTIALS_JSON. We write it to the writable home volume
     (container_file_t SELinux context) so the Google auth library can find it.
     """

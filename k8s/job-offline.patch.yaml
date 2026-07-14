@@ -8,7 +8,7 @@
 # Requirements for offline-go to succeed:
 #   1. Build the image with the toolchains your repos pin, e.g.
 #        podman build --build-arg GO_PREBAKE_TOOLCHAINS="go1.24.3 go1.25.7 go1.26.5" ...
-#      (and, for third-party deps, seed the module cache — see make-offline-cache.sh).
+#      (and, for third-party deps, seed the module cache — see scripts/make-offline-cache.sh).
 #   2. Point the egress proxy Deployment at the offline profile so it stops trusting
 #      package/toolchain hosts:  env: EGRESS_PROFILE=offline-go  (proxy pod, not the agent).
 #   3. Optionally drop proxy.golang.org/sum.golang.org from the NetworkPolicy allow path.

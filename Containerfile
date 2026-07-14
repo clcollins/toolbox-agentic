@@ -106,7 +106,7 @@ RUN set -eux; \
 # --- OPTIONAL: prebake Go toolchains for the air-gapped (offline-go) invocation ---
 # Space-separated versions your repos pin, e.g. "go1.24.3 go1.25.7 go1.26.5".
 # Baked into /opt/go-cache (a GOMODCACHE-shaped dir NOT masked by the runtime volume);
-# bootstrap.py seeds it into the writable GOMODCACHE when AGENT_MODE=offline-go.
+# entrypoint.py seeds it into the writable GOMODCACHE when AGENT_MODE=offline-go.
 # Empty by default so online builds pay no size cost.
 ARG GO_PREBAKE_TOOLCHAINS=""
 RUN set -eux; \
@@ -123,8 +123,8 @@ RUN set -eux; \
 # --- baked-in agent assets (config, skills, deterministic helper scripts) ---
 COPY --chown=1001:1001 claude/  /opt/agent/claude-config/
 COPY --chown=0:0       bin/     /usr/local/bin/
-COPY --chown=1001:1001 bootstrap.py /opt/agent/bootstrap.py
-RUN chmod 0755 /usr/local/bin/agent-* /opt/agent/bootstrap.py
+COPY --chown=1001:1001 entrypoint.py /opt/agent/entrypoint.py
+RUN chmod 0755 /usr/local/bin/agent-* /opt/agent/entrypoint.py
 
 # --- environment ---
 ENV PATH="/usr/local/go/bin:/home/agent/.local/bin:/usr/local/bin:${PATH}" \
@@ -142,4 +142,4 @@ ENV PATH="/usr/local/go/bin:/home/agent/.local/bin:/usr/local/bin:${PATH}" \
 USER 1001
 WORKDIR /workspace
 
-ENTRYPOINT ["/usr/bin/python3", "/opt/agent/bootstrap.py"]
+ENTRYPOINT ["/usr/bin/python3", "/opt/agent/entrypoint.py"]

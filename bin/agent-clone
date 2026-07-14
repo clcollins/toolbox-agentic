@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# agent-clone — clone a repo with credentials already wired by bootstrap.py.
+# agent-clone — clone a repo with credentials already wired by entrypoint.py.
 #
 # Usage: agent-clone host/owner/repo[@ref]
 #   e.g.  agent-clone github.com/your-org/your-repo
