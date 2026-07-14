@@ -30,7 +30,7 @@ scripts/make-offline-cache.sh  Admin tool: bake module+toolchain cache for offli
 - **Entrypoint**: Python 3 (`entrypoint.py`) — no external dependencies
 - **Helper scripts**: Bash (`bin/agent-*`)
 - **Proxy policy**: Python 3 (`egress-proxy/policy.py`) — stdlib-only egress proxy
-- **Build system**: Podman multi-arch builds; no Makefile (image-only project)
+- **Build system**: GNU Make + Podman multi-arch builds (see `make help`)
 - **Target workloads**: Go development (Go 1.26.5 bundled, GOTOOLCHAIN=auto)
 - **Orchestration**: Kubernetes (kubeadm) and Podman on Fedora
 
