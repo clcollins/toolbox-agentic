@@ -224,17 +224,21 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Build images for scanning
         run: make image-build-all CONTAINER_SUBSYS=podman
+      - name: Save images as tarballs for Trivy
+        run: |
+          podman save localhost/agent-runner:go -o /tmp/agent-runner.tar
+          podman save localhost/agent-egress-proxy:latest -o /tmp/egress-proxy.tar
       - name: Scan agent-runner
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
-          image-ref: localhost/agent-runner:go
+          input: /tmp/agent-runner.tar
           format: table
           exit-code: 0
           severity: CRITICAL,HIGH
       - name: Scan egress-proxy
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
-          image-ref: localhost/agent-egress-proxy:latest
+          input: /tmp/egress-proxy.tar
           format: table
           exit-code: 0
           severity: CRITICAL,HIGH
