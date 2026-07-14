@@ -6,7 +6,7 @@ load helpers/mocks
 setup() {
     export AGENT_WORKSPACE="$(mktemp -d)"
     MOCK_DIR="$(mktemp -d)"
-    export PATH="${MOCK_DIR}:${PATH}"
+    export PATH="${MOCK_DIR}:${BATS_ORIGINAL_PATH:-${PATH}}"
 
     TEST_REPO="$(mktemp -d)"
     git -C "$TEST_REPO" init --quiet
@@ -26,12 +26,14 @@ teardown() {
 }
 
 @test "on default branch exits 1" {
-    cd "$(mktemp -d)"
+    NEW_REPO="$(mktemp -d)"
+    cd "$NEW_REPO"
     git init --quiet
     git commit --allow-empty -m "init" --quiet
     create_dispatch_mock glab 'echo "{\"default_branch\":\"main\"}"'
     create_mock jq 0 "main"
     run "${REPO_ROOT}/bin/agent-open-mr" "test title"
+    rm -rf "$NEW_REPO"
     [ "$status" -eq 1 ]
     [[ "$output" == *"default branch"* ]]
 }

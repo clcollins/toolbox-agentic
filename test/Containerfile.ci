@@ -29,6 +29,7 @@ RUN curl -fsSLo /usr/local/bin/hadolint \
 
 # Git identity for bats tests that create test repos with commits
 RUN git config --global user.name "ci-test" \
-    && git config --global user.email "ci-test@localhost"
+    && git config --global user.email "ci-test@localhost" \
+    && git config --global init.defaultBranch main
 
 WORKDIR /src

@@ -30,7 +30,8 @@ load helpers/mocks
     export ANTHROPIC_API_KEY=test
     export AGENT_TASK="test"
     unset AGENT_REPOS
-    create_mock podman
+    # Mock podman to return a valid IP for inspect so the script reaches the AGENT_REPOS check
+    create_dispatch_mock podman 'if [[ "$1" == "inspect" ]]; then echo "10.0.0.1"; else echo ""; fi'
     run bash "${REPO_ROOT}/run-podman.sh"
     [ "$status" -ne 0 ]
     [[ "$output" == *"AGENT_REPOS"* ]]
@@ -40,7 +41,8 @@ load helpers/mocks
     export ANTHROPIC_API_KEY=test
     export AGENT_REPOS="github.com/org/repo"
     unset AGENT_TASK
-    create_mock podman
+    # Mock podman to return a valid IP for inspect so the script reaches the AGENT_TASK check
+    create_dispatch_mock podman 'if [[ "$1" == "inspect" ]]; then echo "10.0.0.1"; else echo ""; fi'
     run bash "${REPO_ROOT}/run-podman.sh"
     [ "$status" -ne 0 ]
     [[ "$output" == *"AGENT_TASK"* ]]
