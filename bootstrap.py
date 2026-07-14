@@ -38,6 +38,7 @@ Optional env:
   AGENT_GO_WORK=1          Create /workspace/go.work spanning all cloned Go modules.
   AGENT_INTERACTIVE=1      Interactive `claude` instead of headless `-p`.
 """
+
 import concurrent.futures as cf
 import os
 import re
@@ -56,7 +57,8 @@ TOOLCHAIN_RE = re.compile(r"^toolchain\s+(\S+)", re.M)
 MODULE_RE = re.compile(r"^module\s+(\S+)", re.M)
 
 
-def log(msg): print(f"[bootstrap] {msg}", flush=True)
+def log(msg):
+    print(f"[bootstrap] {msg}", flush=True)
 
 
 def die(msg, code=1):
@@ -108,13 +110,17 @@ def preflight():
         has_api_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
         has_vertex = _has_vertex_auth()
         if has_vertex:
-            log(f"auth: Vertex AI (project={os.environ.get('VERTEXAI_PROJECT')}, "
-                f"location={os.environ.get('VERTEXAI_LOCATION', 'unset')})")
+            log(
+                f"auth: Vertex AI (project={os.environ.get('VERTEXAI_PROJECT')}, "
+                f"location={os.environ.get('VERTEXAI_LOCATION', 'unset')})"
+            )
         elif has_api_key:
             log("auth: ANTHROPIC_API_KEY")
         else:
-            die("No Claude auth configured. Provide ANTHROPIC_API_KEY, or set "
-                "CLAUDE_CODE_USE_VERTEX=1 with VERTEXAI_PROJECT + ADC credentials.")
+            die(
+                "No Claude auth configured. Provide ANTHROPIC_API_KEY, or set "
+                "CLAUDE_CODE_USE_VERTEX=1 with VERTEXAI_PROJECT + ADC credentials."
+            )
         task = (os.environ.get("AGENT_TASK") or "").strip()
         task_file = (os.environ.get("AGENT_TASK_FILE") or "").strip()
         if not (task or task_file):
@@ -140,7 +146,7 @@ def configure_git():
     run(["git", "config", "--global", "user.name", os.environ.get("GIT_AUTHOR_NAME", "agent-bot")])
     run(["git", "config", "--global", "user.email", os.environ.get("GIT_AUTHOR_EMAIL", "agent-bot@localhost")])
     run(["git", "config", "--global", "init.defaultBranch", "main"])
-    os.environ["GIT_TERMINAL_PROMPT"] = "0"       # never hang on a prompt in a headless box
+    os.environ["GIT_TERMINAL_PROMPT"] = "0"  # never hang on a prompt in a headless box
     if os.environ.get("GH_TOKEN"):
         run(["gh", "auth", "setup-git"])
         log("configured gh as git credential helper for github.com")
@@ -182,6 +188,7 @@ def configure_go_mode():
 def repo_specs():
     """Yield deduped 'host/owner/repo[@ref]' specs from AGENT_REPOS and/or a control repo."""
     seen = {}  # base_spec -> full_tok (with @ref if any)
+
     def emit(tok):
         tok = tok.strip()
         if not tok or tok.startswith("#"):
@@ -189,12 +196,15 @@ def repo_specs():
         base = tok.split("@", 1)[0]
         if base in seen:
             if seen[base] != tok:
-                die(f"repo '{base}' specified with conflicting refs: "
+                die(
+                    f"repo '{base}' specified with conflicting refs: "
                     f"'{seen[base]}' vs '{tok}'. Multiple refs of the same repo "
-                    f"is not currently supported.")
+                    f"is not currently supported."
+                )
             return None
         seen[base] = tok
         return tok
+
     if os.environ.get("AGENT_CONTROL_REPO"):
         ctrl = WORKSPACE / ".control"
         ctrl_url = "https://" + os.environ["AGENT_CONTROL_REPO"].removeprefix("https://")
@@ -210,10 +220,12 @@ def repo_specs():
         if manifest.is_file():
             for line in manifest.read_text().splitlines():
                 t = emit(line)
-                if t: yield t
+                if t:
+                    yield t
     for tok in os.environ.get("AGENT_REPOS", "").split():
         t = emit(tok)
-        if t: yield t
+        if t:
+            yield t
 
 
 def _git_clone(url, dest: Path):
@@ -258,7 +270,9 @@ def go_requirements(dest: Path):
     if not gomod.is_file():
         return None
     txt = gomod.read_text(errors="replace")
-    m = MODULE_RE.search(txt); g = GO_RE.search(txt); t = TOOLCHAIN_RE.search(txt)
+    m = MODULE_RE.search(txt)
+    g = GO_RE.search(txt)
+    t = TOOLCHAIN_RE.search(txt)
     return (m.group(1) if m else "?", g.group(1) if g else "-", t.group(1) if t else "-")
 
 
@@ -270,7 +284,8 @@ def go_scan(cloned):
     for spec, dest in cloned:
         req = go_requirements(dest)
         if req is None:
-            rows.append((spec, dest, None)); continue
+            rows.append((spec, dest, None))
+            continue
         module, gover, toolchain = req
         rows.append((spec, dest, (module, gover, toolchain)))
         if warm:
@@ -314,28 +329,41 @@ def write_workspace_md(rows, go_work):
     task = os.environ.get("AGENT_TASK")
     if not task and os.environ.get("AGENT_TASK_FILE"):
         task = Path(os.environ["AGENT_TASK_FILE"]).read_text()
-    L = ["# WORKSPACE", "",
-         "Isolated, ephemeral agent container. No host access. Egress is restricted to an",
-         "allow-listed policy proxy. Work only inside `/workspace`.", "",
-         "## Repositories (cloned; credentials wired)", "",
-         "| repo | path | module | go | toolchain |",
-         "|---|---|---|---|---|"]
+    L = [
+        "# WORKSPACE",
+        "",
+        "Isolated, ephemeral agent container. No host access. Egress is restricted to an",
+        "allow-listed policy proxy. Work only inside `/workspace`.",
+        "",
+        "## Repositories (cloned; credentials wired)",
+        "",
+        "| repo | path | module | go | toolchain |",
+        "|---|---|---|---|---|",
+    ]
     for spec, dest, req in rows:
         if req is None:
             L.append(f"| `{spec}` | `{dest.name}` | *(not a Go module)* | - | - |")
         else:
             module, gover, toolchain = req
             L.append(f"| `{spec}` | `{dest.name}` | `{module}` | {gover} | {toolchain} |")
-    L += ["",
-          "Go toolchains are resolved **per repo** (`GOTOOLCHAIN=auto`): running `go build`/"
-          "`go test` inside a repo automatically uses the version its go.mod requires.",
-          f"go.work workspace: {'ENABLED at /workspace/go.work' if go_work else 'not enabled (each repo builds independently)'}.",
-          "",
-          "## Deterministic helpers (prefer over ad-hoc shell)", "",
-          "- `agent-clone <host/owner/repo>[@ref]` — clone another repo with creds wired",
-          "- `agent-open-pr` / `agent-open-mr` — push branch + open PR/MR (adds attribution footer)",
-          "- `agent-ci-watch [github|gitlab]` — watch CI to completion for the current branch", "",
-          "## Task", "", task or "(no task provided)", ""]
+    L += [
+        "",
+        "Go toolchains are resolved **per repo** (`GOTOOLCHAIN=auto`): running `go build`/"
+        "`go test` inside a repo automatically uses the version its go.mod requires.",
+        "go.work workspace: "
+        f"{'ENABLED at /workspace/go.work' if go_work else 'not enabled (each repo builds independently)'}.",
+        "",
+        "## Deterministic helpers (prefer over ad-hoc shell)",
+        "",
+        "- `agent-clone <host/owner/repo>[@ref]` — clone another repo with creds wired",
+        "- `agent-open-pr` / `agent-open-mr` — push branch + open PR/MR (adds attribution footer)",
+        "- `agent-ci-watch [github|gitlab]` — watch CI to completion for the current branch",
+        "",
+        "## Task",
+        "",
+        task or "(no task provided)",
+        "",
+    ]
     (WORKSPACE / "WORKSPACE.md").write_text("\n".join(L))
     log("wrote WORKSPACE.md (with per-repo Go-version table)")
     return task

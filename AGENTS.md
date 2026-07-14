@@ -131,12 +131,43 @@ Behavior:
 
 ## Testing
 
-No automated test suite — this is an infrastructure/packaging project. Verification:
-1. `python3 -m py_compile bootstrap.py`
-2. `bash -n` on all shell scripts in `bin/`
-3. JSON validation of `claude/settings.json`
-4. YAML validation of all `k8s/*.yaml`
-5. Container build: `podman build -t agent-runner:go .`
+Verification is fully containerized — `make test` runs identically on a developer
+laptop and in GitHub Actions. No test relies on host-installed tools or CI runner
+preinstalled software.
+
+- **`make test`** (alias: `make ci-all`) — single entry point for all validation
+- **`make ci-build`** — builds the CI test container (`test/Containerfile.ci`)
+- **`make ci-checks`** — runs inside the CI container (called by `ci-all`)
+- **`make test-all`** — validation + full image builds
+- **`make image-build-all`** — proves both Containerfiles build
+
+Individual check targets (all run inside the CI container):
+
+| Target | What it checks |
+|---|---|
+| `lint-python` | `py_compile` + `ruff check` + `ruff format --check` |
+| `lint-shell` | `shellcheck` + `bash -n` on all shell scripts |
+| `lint-container` | `hadolint` on both Containerfiles |
+| `lint-json` | `jq` validation of `claude/settings.json` |
+| `lint-yaml` | `yamllint` on `k8s/` manifests |
+| `validate-containerfile` | Base image tag/registry validation |
+| `test-python` | pytest unit tests (`bootstrap.py`, `policy.py`) |
+| `test-integration` | pytest integration tests (real proxy server) |
+| `test-shell` | bats tests for `bin/agent-*` scripts |
+| `test-security` | Security contract and cross-file consistency tests |
+| `docs-check` | Verifies `docs/plans/` exists |
+
+### Adding new tests
+
+All CI tests MUST be containerized. When adding a new check:
+1. Add required tools to `test/Containerfile.ci` (pinned versions)
+2. Add a `lint-*`, `validate-*`, or `test-*` Makefile target
+3. Add the target to the `ci-checks` dependency list
+4. The GitHub Actions workflow picks it up automatically (it calls `make ci-checks`)
+
+Never add a test that runs directly on the CI runner or requires host-installed
+tools. If `make test` passes locally, it passes in GitHub Actions. Any divergence
+is a bug.
 
 ## Phase 2 (Planned, Not Implemented)
 

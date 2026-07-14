@@ -41,7 +41,9 @@
       "Edit(~/.aws/**)",
       "Edit(~/.config/gh/**)",
       "Edit(~/.config/glab-cli/**)",
-      "Edit(**/.env)"
+      "Edit(**/.env)",
+      "Bash(gh pr merge *)",
+      "Bash(glab mr merge *)"
     ]
   },
   "hooks": {
