@@ -44,7 +44,23 @@ podman volume create "$WORKVOL" >/dev/null
 
 # Validate that at least one auth method is configured
 if [[ -z "${ANTHROPIC_API_KEY:-}" ]] && [[ "${CLAUDE_CODE_USE_VERTEX:-}" != "1" ]]; then
-  echo "ERROR: set ANTHROPIC_API_KEY, or CLAUDE_CODE_USE_VERTEX=1 with VERTEXAI_PROJECT" >&2
+  echo "ERROR: no Claude auth configured." >&2
+  echo "  Set ANTHROPIC_API_KEY for direct API access, or" >&2
+  echo "  Set CLAUDE_CODE_USE_VERTEX=1 with VERTEXAI_PROJECT for Vertex AI." >&2
+  exit 1
+fi
+
+# Validate required agent inputs
+if [[ -z "${AGENT_REPOS:-}" ]] && [[ -z "${AGENT_CONTROL_REPO:-}" ]]; then
+  echo "ERROR: no repositories specified." >&2
+  echo "  Set AGENT_REPOS='host/owner/repo[@ref] ...' (space-separated), or" >&2
+  echo "  Set AGENT_CONTROL_REPO to a git URL containing a repos.txt manifest." >&2
+  exit 1
+fi
+if [[ -z "${AGENT_TASK:-}" ]] && [[ -z "${AGENT_TASK_FILE:-}" ]]; then
+  echo "ERROR: no task specified." >&2
+  echo "  Set AGENT_TASK='your prompt', or" >&2
+  echo "  Set AGENT_TASK_FILE to a file containing the prompt." >&2
   exit 1
 fi
 
@@ -109,8 +125,8 @@ podman run --rm --name "$AGENT" \
   -e AGENT_MODE="$AGENT_MODE" \
   -e AGENT_GOCACHE_SRC="${AGENT_GOCACHE_SRC:-/opt/go-cache}" \
   ${GOPRIVATE:+-e GOPRIVATE="$GOPRIVATE"} \
-  -e AGENT_REPOS="${AGENT_REPOS:?set AGENT_REPOS='host/owner/repo ...'}" \
-  -e AGENT_TASK="${AGENT_TASK:?set AGENT_TASK='your prompt'}" \
+  -e AGENT_REPOS="${AGENT_REPOS:-}" \
+  -e AGENT_TASK="${AGENT_TASK:-}" \
   ${AGENT_TASK_FILE:+-e AGENT_TASK_FILE="$AGENT_TASK_FILE"} \
   ${AGENT_CONTROL_REPO:+-e AGENT_CONTROL_REPO="$AGENT_CONTROL_REPO"} \
   ${AGENT_WARM_TOOLCHAINS:+-e AGENT_WARM_TOOLCHAINS="$AGENT_WARM_TOOLCHAINS"} \
