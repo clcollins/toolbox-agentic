@@ -6,6 +6,7 @@ metadata:
   labels:
     app: claude-agent-runner
 spec:
+  activeDeadlineSeconds: 7200
   ttlSecondsAfterFinished: 3600
   backoffLimit: 0
   template:
@@ -37,13 +38,13 @@ spec:
                 name: agent-tokens-EXAMPLE
           env:
             - name: AGENT_REPOS
-              value: "github.com/clcollins/srepd"
+              value: "github.com/your-org/your-repo"
             - name: AGENT_TASK
               value: "Summarize the repo and propose next steps."
             - name: AGENT_MODE
               value: "online"
             - name: GOPRIVATE
-              value: "github.com/clcollins/*"
+              value: "github.com/your-org/*"
             # Vertex AI auth (alternative to ANTHROPIC_API_KEY in the Secret)
             - name: CLAUDE_CODE_USE_VERTEX
               valueFrom:
@@ -74,6 +75,12 @@ spec:
                 secretKeyRef:
                   name: agent-tokens-EXAMPLE
                   key: CLOUD_ML_REGION
+                  optional: true
+            - name: GOOGLE_APPLICATION_CREDENTIALS_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: agent-tokens-EXAMPLE
+                  key: GOOGLE_APPLICATION_CREDENTIALS_JSON
                   optional: true
             # Proxy
             - name: HTTPS_PROXY

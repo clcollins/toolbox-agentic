@@ -2,8 +2,8 @@
 # agent-clone — clone a repo with credentials already wired by bootstrap.py.
 #
 # Usage: agent-clone host/owner/repo[@ref]
-#   e.g.  agent-clone github.com/clcollins/srepd
-#         agent-clone github.com/clcollins/srepd@fix/issue-42
+#   e.g.  agent-clone github.com/your-org/your-repo
+#         agent-clone github.com/your-org/your-repo@fix/issue-42
 #         agent-clone gitlab.com/group/project@v2.1.0
 set -euo pipefail
 
@@ -21,9 +21,7 @@ if [[ "$SPEC" == *@* ]]; then
   SPEC="${SPEC%@*}"
 fi
 
-HOST="${SPEC%%/*}"
-PATH_PART="${SPEC#*/}"
-DEST="${WORKSPACE}/${PATH_PART//\//__}"
+DEST="${WORKSPACE}/${SPEC//\//__}"
 
 if [[ -d "$DEST" ]]; then
   echo "[agent-clone] already cloned: $DEST"
