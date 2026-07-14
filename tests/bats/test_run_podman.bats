@@ -9,7 +9,7 @@ load helpers/mocks
     export AGENT_REPOS="github.com/org/repo"
     export AGENT_TASK="test"
     create_mock podman
-    run bash "${REPO_ROOT}/run-podman.sh"
+    run bash "${REPO_ROOT}/scripts/run-podman.sh"
     [ "$status" -ne 0 ]
     [[ "$output" == *"ANTHROPIC_API_KEY"* ]] || [[ "$output" == *"CLAUDE_CODE_USE_VERTEX"* ]]
 }
@@ -21,7 +21,7 @@ load helpers/mocks
     export AGENT_REPOS="github.com/org/repo"
     export AGENT_TASK="test"
     create_mock podman
-    run bash "${REPO_ROOT}/run-podman.sh"
+    run bash "${REPO_ROOT}/scripts/run-podman.sh"
     [ "$status" -ne 0 ]
     [[ "$output" == *"ADC"* ]]
 }
@@ -32,7 +32,7 @@ load helpers/mocks
     unset AGENT_REPOS
     # Mock podman to return a valid IP for inspect so the script reaches the AGENT_REPOS check
     create_dispatch_mock podman 'if [[ "$1" == "inspect" ]]; then echo "10.0.0.1"; else echo ""; fi'
-    run bash "${REPO_ROOT}/run-podman.sh"
+    run bash "${REPO_ROOT}/scripts/run-podman.sh"
     [ "$status" -ne 0 ]
     [[ "$output" == *"AGENT_REPOS"* ]]
 }
@@ -43,7 +43,7 @@ load helpers/mocks
     unset AGENT_TASK
     # Mock podman to return a valid IP for inspect so the script reaches the AGENT_TASK check
     create_dispatch_mock podman 'if [[ "$1" == "inspect" ]]; then echo "10.0.0.1"; else echo ""; fi'
-    run bash "${REPO_ROOT}/run-podman.sh"
+    run bash "${REPO_ROOT}/scripts/run-podman.sh"
     [ "$status" -ne 0 ]
     [[ "$output" == *"AGENT_TASK"* ]]
 }

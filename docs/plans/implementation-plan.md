@@ -23,7 +23,7 @@ with Podman or on a kubeadm cluster.
 - **UBI 9 base**: glibc 2.34 matches Claude Code's Linux binary requirements
 - **Go from upstream tarball**: pinned version with per-arch checksums, not distro package
 - **GOTOOLCHAIN=auto**: each repo selects its own Go version via go.mod
-- **Python entrypoint**: bootstrap.py runs before Claude (zero model tokens)
+- **Python entrypoint**: entrypoint.py runs before Claude (zero model tokens)
 - **glab from release binary**: checksum-verified, not in UBI repos
 - **Claude Code from signed dnf repo**: gpgcheck=1 for supply-chain integrity
 - **Disk-backed volumes**: NEVER RAM-backed tmpfs for Go caches (would OOM)
@@ -48,9 +48,9 @@ with Podman or on a kubeadm cluster.
 
 ## Verification
 
-1. `python3 -m py_compile bootstrap.py` — syntax check
+1. `python3 -m py_compile entrypoint.py` — syntax check
 2. `bash -n` on all shell scripts — parse check
 3. JSON parse on claude/settings.json
 4. YAML parse on all k8s/*.yaml files
-5. Cross-reference env var names across Containerfile, bootstrap.py, run-podman.sh, k8s/job.yaml
+5. Cross-reference env var names across Containerfile, entrypoint.py, scripts/run-podman.sh, k8s/job.yaml
 6. Build the Containerfile for amd64 (checksums must be filled first)

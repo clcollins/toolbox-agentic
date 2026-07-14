@@ -48,7 +48,7 @@ if [[ -z "${ANTHROPIC_API_KEY:-}" ]] && [[ "${CLAUDE_CODE_USE_VERTEX:-}" != "1" 
   exit 1
 fi
 
-# Vertex AI: read ADC credentials into an env var so bootstrap.py can write them
+# Vertex AI: read ADC credentials into an env var so entrypoint.py can write them
 # to disk inside the container's writable home volume. Bind-mounting host files
 # fails under SELinux (container_t cannot read user_home_t/user_tmp_t) and the
 # :z/:Z relabel flags do not work reliably from toolbx via flatpak-spawn.

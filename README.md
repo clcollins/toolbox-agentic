@@ -21,7 +21,7 @@ ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
 GH_TOKEN="$GH_TOKEN" \
 AGENT_REPOS="github.com/your-org/your-repo" \
 AGENT_TASK="Summarize the repo and propose next steps." \
-  ./run-podman.sh
+  ./scripts/run-podman.sh
 
 # 2. Run — Option B: Vertex AI (GCP)
 CLAUDE_CODE_USE_VERTEX=1 \
@@ -32,11 +32,11 @@ CLOUD_ML_REGION="$CLOUD_ML_REGION" \
 GH_TOKEN="$GH_TOKEN" \
 AGENT_REPOS="github.com/your-org/your-repo" \
 AGENT_TASK="Summarize the repo and propose next steps." \
-  ./run-podman.sh
+  ./scripts/run-podman.sh
 ```
 
 Vertex AI requires Application Default Credentials on the host. Run
-`gcloud auth application-default login` first — `run-podman.sh` reads the ADC file
+`gcloud auth application-default login` first — `scripts/run-podman.sh` reads the ADC file
 and injects it into the container automatically.
 
 For interactive mode (chat with Claude instead of fire-and-forget), add
@@ -49,7 +49,7 @@ For interactive mode (chat with Claude instead of fire-and-forget), add
                  │  agent container (uid 1001, ro-rootfs,       │
    scoped        │  cap-drop ALL, seccomp, SELinux, no host fs, │
    tokens ──────▶│  no k8s API token)                          │
-   (env/Secret)  │    bootstrap.py → git/gh/glab → clone →      │
+   (env/Secret)  │    entrypoint.py → git/gh/glab → clone →     │
                  │    claude --dangerously-skip-permissions     │
                  │        │ HTTPS_PROXY (only route out)         │
                  └────────┼─────────────────────────────────────┘
@@ -61,7 +61,7 @@ For interactive mode (chat with Claude instead of fire-and-forget), add
 ```
 
 On **Kubernetes**, a `NetworkPolicy` permits egress only to DNS and the proxy (hard
-enforcement). On **Podman**, `run-podman.sh` sets `HTTPS_PROXY`/`HTTP_PROXY` so all
+enforcement). On **Podman**, `scripts/run-podman.sh` sets `HTTPS_PROXY`/`HTTP_PROXY` so all
 standard HTTP clients route through the proxy. Rootful podman can use `--internal`
 networks for hard isolation; rootless podman uses a standard bridge with proxy env vars.
 
@@ -140,7 +140,7 @@ The image bundles Go 1.26.5 but sets `GOTOOLCHAIN=auto`. When Claude runs `go bu
 transparently downloads and runs that exact toolchain from `proxy.golang.org`, verified
 via `sum.golang.org` (both on the egress allow-list).
 
-`bootstrap.py` reads every repo's `go.mod` and writes a per-repo Go-version table into
+`entrypoint.py` reads every repo's `go.mod` and writes a per-repo Go-version table into
 `WORKSPACE.md` before Claude starts.
 
 Set `AGENT_WARM_TOOLCHAINS=1` to pre-download each repo's toolchain during bootstrap
@@ -165,7 +165,7 @@ podman build --tag agent-runner:go \
 # Toolchains + module deps (one-shot admin tool):
 GH_TOKEN="$GH_TOKEN" \
 REPOS="github.com/org/repo-a github.com/org/repo-b" \
-  ./make-offline-cache.sh    # -> localhost/agent-runner:go-offline
+  ./scripts/make-offline-cache.sh    # -> localhost/agent-runner:go-offline
 ```
 
 **Run offline:**
@@ -174,7 +174,7 @@ REPOS="github.com/org/repo-a github.com/org/repo-b" \
 IMAGE=localhost/agent-runner:go-offline AGENT_MODE=offline-go \
 AGENT_REPOS="github.com/org/repo-a" \
 AGENT_TASK="Fix the failing test; open a PR." \
-  ./run-podman.sh
+  ./scripts/run-podman.sh
 ```
 
 ## Kubernetes Deployment
@@ -230,22 +230,24 @@ needed.
 ## File Map
 
 ```
-Containerfile              UBI 9 image: Go + gh + glab + claude-code + python, non-root
-bootstrap.py               entrypoint: preflight -> wire auth -> clone -> orient -> exec claude
-bin/agent-clone            deterministic helpers (pre-approved in settings.json)
+Containerfile                   UBI 9 image: Go + gh + glab + claude-code + python, non-root
+entrypoint.py                   entrypoint: preflight -> wire auth -> clone -> orient -> exec claude
+bin/agent-clone                 deterministic helpers (pre-approved in settings.json)
 bin/agent-open-pr
 bin/agent-open-mr
 bin/agent-ci-watch
-claude/settings.json       permission allow/deny, gofmt hook, env overrides
-claude/CLAUDE.md           operating instructions baked into the agent
-egress-proxy/policy.py     stdlib-only egress proxy: host allow-list + method enforcement
-egress-proxy/Containerfile proxy image (UBI 9 minimal + python3)
-k8s/job.yaml               ephemeral Job, hardened securityContext, self-destructs
-k8s/networkpolicy.yaml     default-deny egress except DNS + the proxy
-k8s/secret.example.yaml    per-run scoped tokens template
-k8s/job-offline.patch.yaml overlay for air-gapped (offline-go) mode
-run-podman.sh              host runner: per-run network, proxy, hardened agent container
-make-offline-cache.sh      admin tool: bake module+toolchain cache for offline runs
+ci/Containerfile                CI test container image
+ci/scripts/                     CI validation scripts
+claude/settings.json            permission allow/deny, gofmt hook, env overrides
+claude/CLAUDE.md                operating instructions baked into the agent
+egress-proxy/policy.py          stdlib-only egress proxy: host allow-list + method enforcement
+egress-proxy/Containerfile      proxy image (UBI 9 minimal + python3)
+k8s/job.yaml                    ephemeral Job, hardened securityContext, self-destructs
+k8s/networkpolicy.yaml          default-deny egress except DNS + the proxy
+k8s/secret.example.yaml         per-run scoped tokens template
+k8s/job-offline.patch.yaml      overlay for air-gapped (offline-go) mode
+scripts/run-podman.sh           host runner: per-run network, proxy, hardened agent container
+scripts/make-offline-cache.sh   admin tool: bake module+toolchain cache for offline runs
 ```
 
 ## Verify Before Building

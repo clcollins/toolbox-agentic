@@ -14,7 +14,7 @@ IMAGE_REGISTRY ?= quay.io
 
 CONTAINER_FILE := Containerfile
 PROXY_CONTAINER_FILE := egress-proxy/Containerfile
-CI_CONTAINER_FILE := test/Containerfile.ci
+CI_CONTAINER_FILE := ci/Containerfile
 CI_IMAGE := $(NAME)-ci
 IMAGE_STRING := $(IMAGE_REGISTRY)/$(PROJECT)/$(NAME)
 
@@ -90,8 +90,8 @@ PROXY_PORT ?=
 # Sources (for validation targets)
 # ---------------------------------------------------------------------------
 SHELL_SCRIPTS := bin/agent-clone bin/agent-open-pr bin/agent-open-mr bin/agent-ci-watch \
-                 run-podman.sh make-offline-cache.sh
-PYTHON_SOURCES := bootstrap.py egress-proxy/policy.py
+                 scripts/run-podman.sh scripts/make-offline-cache.sh
+PYTHON_SOURCES := entrypoint.py egress-proxy/policy.py
 CONTAINERFILES := Containerfile egress-proxy/Containerfile
 
 # ============================================================================
@@ -162,20 +162,20 @@ image-push-proxy: image-build-proxy ## Build and push egress-proxy image
 # ---------------------------------------------------------------------------
 
 .PHONY: run
-run: ## Run agent (headless) via run-podman.sh
-	./run-podman.sh
+run: ## Run agent (headless) via scripts/run-podman.sh
+	./scripts/run-podman.sh
 
 .PHONY: run-interactive
 run-interactive: ## Run agent interactively
-	AGENT_INTERACTIVE=1 ./run-podman.sh
+	AGENT_INTERACTIVE=1 ./scripts/run-podman.sh
 
 .PHONY: run-offline
 run-offline: ## Run agent in offline-go mode
-	AGENT_MODE=offline-go ./run-podman.sh
+	AGENT_MODE=offline-go ./scripts/run-podman.sh
 
 .PHONY: build-offline-cache
-build-offline-cache: ## Build offline Go cache image via make-offline-cache.sh
-	./make-offline-cache.sh
+build-offline-cache: ## Build offline Go cache image via scripts/make-offline-cache.sh
+	./scripts/make-offline-cache.sh
 
 # ---------------------------------------------------------------------------
 # CI / containerized test targets
@@ -201,7 +201,7 @@ lint: lint-python lint-shell lint-container lint-json lint-yaml validate-contain
 
 .PHONY: lint-python
 lint-python: ## Compile-check and lint Python sources
-	python3 -m py_compile bootstrap.py
+	python3 -m py_compile entrypoint.py
 	python3 -m py_compile egress-proxy/policy.py
 	ruff check .
 	ruff format --check .
@@ -229,7 +229,7 @@ lint-yaml: ## Lint YAML files (k8s manifests)
 .PHONY: validate-containerfile
 validate-containerfile: ## Validate Containerfile base image tags and registries
 	@for f in $(CONTAINERFILES); do \
-		bash test/scripts/check-containerfile-tags.sh "$$f" || exit 1; \
+		bash ci/scripts/check-containerfile-tags.sh "$$f" || exit 1; \
 	done
 
 # ---------------------------------------------------------------------------
@@ -237,7 +237,7 @@ validate-containerfile: ## Validate Containerfile base image tags and registries
 # ---------------------------------------------------------------------------
 
 .PHONY: test-python
-test-python: ## Run pytest unit tests (bootstrap.py, policy.py)
+test-python: ## Run pytest unit tests (entrypoint.py, policy.py)
 	pytest tests/ -m "not integration" -v
 
 .PHONY: test-integration

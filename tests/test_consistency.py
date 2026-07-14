@@ -23,7 +23,7 @@ def containerfile_text():
 
 @pytest.fixture(scope="module")
 def run_podman_text():
-    return (REPO_ROOT / "run-podman.sh").read_text()
+    return (REPO_ROOT / "scripts" / "run-podman.sh").read_text()
 
 
 @pytest.fixture(scope="module")
@@ -100,7 +100,7 @@ class TestEnvVarConsistency:
 
     @pytest.mark.parametrize("var", BOOTSTRAP_ENV_VARS)
     def test_env_var_in_run_podman(self, run_podman_text, var):
-        assert var in run_podman_text, f"env var '{var}' not found in run-podman.sh"
+        assert var in run_podman_text, f"env var '{var}' not found in scripts/run-podman.sh"
 
     @pytest.mark.parametrize("var", BOOTSTRAP_ENV_VARS)
     def test_env_var_in_job_yaml(self, job_yaml_text, var):

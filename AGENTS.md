@@ -14,19 +14,20 @@ Kubernetes deployment.
 
 ```
 Containerfile              UBI 9 multi-arch image (amd64/arm64)
-bootstrap.py               Python entrypoint (runs before Claude, zero model tokens)
+entrypoint.py              Python entrypoint (runs before Claude, zero model tokens)
 bin/                        Deterministic shell helpers (pre-approved in settings.json)
+ci/                         CI test container and validation scripts
 claude/                     Baked-in Claude Code config (settings.json, CLAUDE.md)
 egress-proxy/               stdlib-only egress policy proxy for host+method allow-listing
 k8s/                        Kubernetes Job, NetworkPolicy, Secret template
-run-podman.sh               Host runner with per-run network and proxy enforcement
-make-offline-cache.sh       Admin tool: bake module+toolchain cache for offline runs
+scripts/run-podman.sh       Host runner with per-run network and proxy enforcement
+scripts/make-offline-cache.sh  Admin tool: bake module+toolchain cache for offline runs
 ```
 
 ## Languages and Tools
 
 - **Container image**: RHEL UBI 9 base, Containerfile (Podman, not Docker)
-- **Entrypoint**: Python 3 (`bootstrap.py`) — no external dependencies
+- **Entrypoint**: Python 3 (`entrypoint.py`) — no external dependencies
 - **Helper scripts**: Bash (`bin/agent-*`)
 - **Proxy policy**: Python 3 (`egress-proxy/policy.py`) — stdlib-only egress proxy
 - **Build system**: Podman multi-arch builds; no Makefile (image-only project)
@@ -49,7 +50,7 @@ Multi-stage UBI 9 build. Installs Go (upstream tarball, per-arch checksums), gh 
 repo), glab (release binary, checksum-verified), claude-code (signed dnf repo), Python,
 and build tools. Creates non-root user, optionally pre-bakes Go toolchains.
 
-### `bootstrap.py`
+### `entrypoint.py`
 Python entrypoint that runs before Claude launches (zero model tokens):
 1. Preflight validation of required env vars
 2. Seeds Claude config from baked path into runtime volume
@@ -97,12 +98,12 @@ Template for per-run scoped tokens (ANTHROPIC_API_KEY, GH_TOKEN, GITLAB_TOKEN).
 ### `k8s/job-offline.patch.yaml`
 Kustomize patch overlay to switch a Job to air-gapped (offline-go) mode.
 
-### `run-podman.sh`
+### `scripts/run-podman.sh`
 Host runner script. Creates a per-run Podman network, starts the proxy, and runs the
 agent with HTTPS_PROXY/HTTP_PROXY pointing at the proxy. Cleanup trap removes all
 resources on exit.
 
-### `make-offline-cache.sh`
+### `scripts/make-offline-cache.sh`
 Admin tool for building the offline Go cache image. Runs the agent in cache-only mode,
 then layers the populated GOMODCACHE into a derived `:go-offline` image.
 
@@ -136,7 +137,7 @@ laptop and in GitHub Actions. No test relies on host-installed tools or CI runne
 preinstalled software.
 
 - **`make test`** (alias: `make ci-all`) — single entry point for all validation
-- **`make ci-build`** — builds the CI test container (`test/Containerfile.ci`)
+- **`make ci-build`** — builds the CI test container (`ci/Containerfile`)
 - **`make ci-checks`** — runs inside the CI container (called by `ci-all`)
 - **`make test-all`** — validation + full image builds
 - **`make image-build-all`** — proves both Containerfiles build
@@ -151,7 +152,7 @@ Individual check targets (all run inside the CI container):
 | `lint-json` | `jq` validation of `claude/settings.json` |
 | `lint-yaml` | `yamllint` on `k8s/` manifests |
 | `validate-containerfile` | Base image tag/registry validation |
-| `test-python` | pytest unit tests (`bootstrap.py`, `policy.py`) |
+| `test-python` | pytest unit tests (`entrypoint.py`, `policy.py`) |
 | `test-integration` | pytest integration tests (real proxy server) |
 | `test-shell` | bats tests for `bin/agent-*` scripts |
 | `test-security` | Security contract and cross-file consistency tests |
@@ -160,7 +161,7 @@ Individual check targets (all run inside the CI container):
 ### Adding new tests
 
 All CI tests MUST be containerized. When adding a new check:
-1. Add required tools to `test/Containerfile.ci` (pinned versions)
+1. Add required tools to `ci/Containerfile` (pinned versions)
 2. Add a `lint-*`, `validate-*`, or `test-*` Makefile target
 3. Add the target to the `ci-checks` dependency list
 4. The GitHub Actions workflow picks it up automatically (it calls `make ci-checks`)

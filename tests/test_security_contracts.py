@@ -39,7 +39,7 @@ def secret_yaml():
 
 @pytest.fixture(scope="module")
 def run_podman_text():
-    return (REPO_ROOT / "run-podman.sh").read_text()
+    return (REPO_ROOT / "scripts" / "run-podman.sh").read_text()
 
 
 class TestSettingsJson:
