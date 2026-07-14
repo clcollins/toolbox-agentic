@@ -50,7 +50,7 @@ with Podman or on a kubeadm cluster.
 
 1. `python3 -m py_compile entrypoint.py` — syntax check
 2. `bash -n` on all shell scripts — parse check
-3. JSON parse on claude/settings.json
+3. JSON parse on agent-config/settings.json
 4. YAML parse on all k8s/*.yaml files
 5. Cross-reference env var names across Containerfile, entrypoint.py, scripts/run-podman.sh, k8s/job.yaml
 6. Build the Containerfile for amd64 (checksums must be filled first)

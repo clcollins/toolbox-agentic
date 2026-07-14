@@ -17,7 +17,7 @@ Containerfile              UBI 9 multi-arch image (amd64/arm64)
 entrypoint.py              Python entrypoint (runs before Claude, zero model tokens)
 bin/                        Deterministic shell helpers (pre-approved in settings.json)
 ci/                         CI test container and validation scripts
-claude/                     Baked-in Claude Code config (settings.json, CLAUDE.md)
+agent-config/               Baked-in Claude Code config (settings.json, CLAUDE.md)
 egress-proxy/               stdlib-only egress policy proxy for host+method allow-listing
 k8s/                        Kubernetes Job, NetworkPolicy, Secret template
 scripts/run-podman.sh       Host runner with per-run network and proxy enforcement
@@ -62,18 +62,18 @@ Python entrypoint that runs before Claude launches (zero model tokens):
 
 ### `bin/agent-*`
 Deterministic helper scripts that collapse multi-step operations into single
-commands. Pre-approved in `claude/settings.json` so Claude runs them without prompts:
+commands. Pre-approved in `agent-config/settings.json` so Claude runs them without prompts:
 - `agent-clone` — clone with wired credentials
 - `agent-open-pr` — push + open GitHub PR with attribution footer
 - `agent-open-mr` — push + open GitLab MR with attribution footer
 - `agent-ci-watch` — poll CI to completion (GitHub Actions or GitLab pipeline)
 
-### `claude/settings.json`
+### `agent-config/settings.json`
 Claude Code permission config: allow-list for agent-* helpers and Go/git tooling,
 deny-list for credential paths, PostToolUse gofmt hook, env vars to disable
 auto-updates and telemetry.
 
-### `claude/CLAUDE.md`
+### `agent-config/CLAUDE.md`
 Operating instructions baked into the agent: workspace orientation, helper usage,
 commit trailer convention (`Co-Authored-By`), security boundaries.
 
@@ -149,7 +149,7 @@ Individual check targets (all run inside the CI container):
 | `lint-python` | `py_compile` + `ruff check` + `ruff format --check` |
 | `lint-shell` | `shellcheck` + `bash -n` on all shell scripts |
 | `lint-container` | `hadolint` on both Containerfiles |
-| `lint-json` | `jq` validation of `claude/settings.json` |
+| `lint-json` | `jq` validation of `agent-config/settings.json` |
 | `lint-yaml` | `yamllint` on `k8s/` manifests |
 | `validate-containerfile` | Base image tag/registry validation |
 | `test-python` | pytest unit tests (`entrypoint.py`, `policy.py`) |

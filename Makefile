@@ -220,7 +220,7 @@ lint-container: ## Lint Containerfiles with hadolint
 
 .PHONY: lint-json
 lint-json: ## Validate JSON files
-	jq . claude/settings.json > /dev/null
+	jq . agent-config/settings.json > /dev/null
 
 .PHONY: lint-yaml
 lint-yaml: ## Lint YAML files (k8s manifests)

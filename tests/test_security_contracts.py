@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).parent.parent
 
 @pytest.fixture(scope="module")
 def settings():
-    with open(REPO_ROOT / "claude" / "settings.json") as f:
+    with open(REPO_ROOT / "agent-config" / "settings.json") as f:
         return json.load(f)
 
 

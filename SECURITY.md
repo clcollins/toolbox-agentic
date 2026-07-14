@@ -159,7 +159,7 @@ a Secret volume directly (K8s Secrets get correct SELinux contexts automatically
 
 ### Credential Path Deny-List
 
-`claude/settings.json` denies Claude read and write access to credential directories:
+`agent-config/settings.json` denies Claude read and write access to credential directories:
 
 ```json
 "deny": [
