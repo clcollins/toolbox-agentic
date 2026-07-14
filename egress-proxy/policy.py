@@ -24,6 +24,7 @@ Env:
   EGRESS_PROFILE=offline-go   strips package/toolchain hosts from the trusted set
   PROXY_PORT=8080             listen port (default 8080)
 """
+
 import http.client
 import http.server
 import ipaddress
@@ -33,7 +34,6 @@ import signal
 import socket
 import socketserver
 import sys
-import threading
 from urllib.parse import urlparse
 
 TRUSTED_HOSTS = {
@@ -42,24 +42,36 @@ TRUSTED_HOSTS = {
     "oauth2.googleapis.com",
     "aiplatform.googleapis.com",
     # GitHub
-    "github.com", "api.github.com", "codeload.github.com",
-    "objects.githubusercontent.com", "uploads.github.com",
+    "github.com",
+    "api.github.com",
+    "codeload.github.com",
+    "objects.githubusercontent.com",
+    "uploads.github.com",
     # GitLab
-    "gitlab.com", "registry.gitlab.com",
+    "gitlab.com",
+    "registry.gitlab.com",
     # Go modules / checksum db / registries
-    "proxy.golang.org", "sum.golang.org", "goproxy.io",
-    "registry.npmjs.org", "pypi.org", "files.pythonhosted.org",
-    "static.crates.io", "index.crates.io",
+    "proxy.golang.org",
+    "sum.golang.org",
+    "goproxy.io",
+    "registry.npmjs.org",
+    "pypi.org",
+    "files.pythonhosted.org",
+    "static.crates.io",
+    "index.crates.io",
 }
 
-_TRUSTED_SUFFIXES = (
-    "-aiplatform.googleapis.com",
-)
+_TRUSTED_SUFFIXES = ("-aiplatform.googleapis.com",)
 
 _PACKAGE_HOSTS = {
-    "proxy.golang.org", "sum.golang.org", "goproxy.io",
-    "registry.npmjs.org", "pypi.org", "files.pythonhosted.org",
-    "static.crates.io", "index.crates.io",
+    "proxy.golang.org",
+    "sum.golang.org",
+    "goproxy.io",
+    "registry.npmjs.org",
+    "pypi.org",
+    "files.pythonhosted.org",
+    "static.crates.io",
+    "index.crates.io",
 }
 
 if os.environ.get("EGRESS_PROFILE") == "offline-go":
@@ -168,8 +180,9 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
             return
         body = self.rfile.read(content_length) if content_length > 0 else None
 
-        headers = {k: v for k, v in self.headers.items()
-                   if k.lower() not in ("proxy-connection", "proxy-authorization")}
+        headers = {
+            k: v for k, v in self.headers.items() if k.lower() not in ("proxy-connection", "proxy-authorization")
+        }
 
         try:
             conn = http.client.HTTPConnection(host, port, timeout=30)
@@ -216,9 +229,11 @@ def main():
     print(f"[proxy] trusted hosts: {len(TRUSTED_HOSTS)}", flush=True)
     profile = os.environ.get("EGRESS_PROFILE", "default")
     print(f"[proxy] egress profile: {profile}", flush=True)
+
     def _shutdown(*_):
         print("[proxy] shutting down", flush=True)
         os._exit(0)
+
     signal.signal(signal.SIGTERM, _shutdown)
     try:
         server.serve_forever()
