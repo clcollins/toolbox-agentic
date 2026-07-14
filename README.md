@@ -9,19 +9,18 @@ Auth is 12-factor: nothing is baked in. Scoped tokens arrive as environment vari
 the entrypoint wires them into `gh`, `glab`, and git, clones the repos, and only then
 launches Claude. See [SECURITY.md](SECURITY.md) for the full security model.
 
-## Quickstart (Podman)
+## Quickstart
 
 ```bash
-# 1. Build both images
-podman build --tag agent-runner:go .
-podman build --tag agent-egress-proxy:latest egress-proxy/
+# 1. Build both images (agent-runner + egress-proxy)
+make image-build-all
 
 # 2. Run — Option A: Anthropic API key
 ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
 GH_TOKEN="$GH_TOKEN" \
 AGENT_REPOS="github.com/your-org/your-repo" \
 AGENT_TASK="Summarize the repo and propose next steps." \
-  ./scripts/run-podman.sh
+  make run
 
 # 2. Run — Option B: Vertex AI (GCP)
 CLAUDE_CODE_USE_VERTEX=1 \
@@ -32,15 +31,36 @@ CLOUD_ML_REGION="$CLOUD_ML_REGION" \
 GH_TOKEN="$GH_TOKEN" \
 AGENT_REPOS="github.com/your-org/your-repo" \
 AGENT_TASK="Summarize the repo and propose next steps." \
-  ./scripts/run-podman.sh
+  make run
 ```
 
 Vertex AI requires Application Default Credentials on the host. Run
 `gcloud auth application-default login` first — `scripts/run-podman.sh` reads the ADC file
 and injects it into the container automatically.
 
-For interactive mode (chat with Claude instead of fire-and-forget), add
-`AGENT_INTERACTIVE=1`.
+For interactive mode (chat with Claude instead of fire-and-forget), use
+`make run-interactive`.
+
+All environment variables can also be set in a `.env` file at the repo root (the
+Makefile `-include`s it automatically).
+
+## Makefile Targets
+
+Run `make help` for the full list. Key targets:
+
+| Target | Description |
+|---|---|
+| `make image-build-all` | Build both agent-runner and egress-proxy images |
+| `make run` | Run agent headless (requires `AGENT_TASK`, `AGENT_REPOS`, and auth env vars) |
+| `make run-interactive` | Run agent interactively (chat with Claude) |
+| `make run-offline` | Run agent in air-gapped `offline-go` mode |
+| `make build-offline-cache` | Bake module + toolchain cache for offline runs |
+| `make test` | Run all checks in a containerized CI environment |
+| `make test-all` | Run all checks + build both images |
+| `make clean` | Remove dangling agent volumes and networks |
+
+By default the Makefile uses `podman`. Set `CONTAINER_SUBSYS=docker` to use Docker
+instead.
 
 ## Architecture
 
@@ -159,22 +179,20 @@ Set `AGENT_WARM_TOOLCHAINS=1` to pre-download each repo's toolchain during boots
 
 ```bash
 # Toolchains only (at build time):
-podman build --tag agent-runner:go \
-  --build-arg GO_PREBAKE_TOOLCHAINS="go1.24.3 go1.25.7 go1.26.5" .
+GO_PREBAKE_TOOLCHAINS="go1.24.3 go1.25.7 go1.26.5" make image-build
 
 # Toolchains + module deps (one-shot admin tool):
 GH_TOKEN="$GH_TOKEN" \
 REPOS="github.com/org/repo-a github.com/org/repo-b" \
-  ./scripts/make-offline-cache.sh    # -> localhost/agent-runner:go-offline
+  make build-offline-cache    # -> localhost/agent-runner:go-offline
 ```
 
 **Run offline:**
 
 ```bash
-IMAGE=localhost/agent-runner:go-offline AGENT_MODE=offline-go \
 AGENT_REPOS="github.com/org/repo-a" \
 AGENT_TASK="Fix the failing test; open a PR." \
-  ./scripts/run-podman.sh
+  make run-offline
 ```
 
 ## Kubernetes Deployment
@@ -207,7 +225,7 @@ blast-radius containment and clean audit/revocation.
 The Containerfile is arch-aware (`TARGETARCH`). Build a manifest list for mixed clusters:
 
 ```bash
-podman build --platform linux/amd64,linux/arm64 --manifest agent-runner:go .
+make image-build-multi-all
 ```
 
 Supply both `GO_SHA256_AMD64` and `GO_SHA256_ARM64` build args with the correct checksums
@@ -230,6 +248,7 @@ needed.
 ## File Map
 
 ```
+Makefile                        build, run, test, and CI targets (run `make help`)
 Containerfile                   UBI 9 image: Go + gh + glab + claude-code + python, non-root
 entrypoint.py                   entrypoint: preflight -> wire auth -> clone -> orient -> exec claude
 bin/agent-clone                 deterministic helpers (pre-approved in settings.json)

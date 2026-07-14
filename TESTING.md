@@ -2,7 +2,7 @@
 
 ## Automated test suite
 
-Run all tests (creates a `.venv` automatically on first run):
+All tests run inside a containerized CI environment — no host-installed tools required.
 
 ```bash
 make test
@@ -12,12 +12,13 @@ Individual targets:
 
 | Target | What it runs |
 |--------|-------------|
-| `make lint` | Python (ruff, py_compile), shell (shellcheck, bash -n), Containerfile (hadolint), K8s (kubeconform) |
+| `make lint` | Python (ruff, py_compile), shell (shellcheck, bash -n), Containerfile (hadolint), JSON (jq), YAML (yamllint) |
 | `make test-python` | pytest unit tests (entrypoint.py, policy.py) |
 | `make test-integration` | pytest integration tests (real proxy server, SSRF, CONNECT) |
-| `make test-shell` | bats tests for bin/agent-* scripts and scripts/run-podman.sh |
+| `make test-shell` | bats tests for bin/agent-* scripts |
 | `make test-security` | security contract + cross-file consistency tests |
-| `make build` | podman build both images |
+| `make image-build-all` | Build both agent-runner and egress-proxy images |
+| `make test-all` | Run all checks + build both images |
 
 CI runs all of the above via `.github/workflows/ci.yml`.
 
@@ -29,15 +30,14 @@ These tests require a running container or external services and are not automat
 
 ```bash
 # 1. Build both images
-podman build --tag agent-runner:go .
-podman build --tag agent-egress-proxy:latest egress-proxy/
+make image-build-all
 
 # 2. Run with direct API key
 ANTHROPIC_API_KEY="sk-ant-..." \
 GH_TOKEN="ghp_..." \
 AGENT_REPOS="github.com/owner/repo" \
 AGENT_TASK="Summarize the repo and propose next steps." \
-  ./scripts/run-podman.sh
+  make run
 
 # 3. Or with Vertex AI
 CLAUDE_CODE_USE_VERTEX=1 \
@@ -46,7 +46,7 @@ VERTEXAI_LOCATION="global" \
 GH_TOKEN="ghp_..." \
 AGENT_REPOS="github.com/owner/repo" \
 AGENT_TASK="Summarize the repo and propose next steps." \
-  ./scripts/run-podman.sh
+  make run
 ```
 
 ### Manual proxy hardening (HTTPie)
@@ -54,7 +54,7 @@ AGENT_TASK="Summarize the repo and propose next steps." \
 Build and run the proxy, then test each scenario:
 
 ```bash
-podman build --tag agent-egress-proxy:latest egress-proxy/
+make image-build-proxy
 podman run -d --name test-proxy -p 18080:8080 agent-egress-proxy:latest
 
 # Malformed Content-Length → 400
