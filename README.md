@@ -238,8 +238,8 @@ bin/agent-open-mr
 bin/agent-ci-watch
 ci/Containerfile                CI test container image
 ci/scripts/                     CI validation scripts
-claude/settings.json            permission allow/deny, gofmt hook, env overrides
-claude/CLAUDE.md                operating instructions baked into the agent
+agent-config/settings.json      permission allow/deny, gofmt hook, env overrides
+agent-config/CLAUDE.md          operating instructions baked into the agent
 egress-proxy/policy.py          stdlib-only egress proxy: host allow-list + method enforcement
 egress-proxy/Containerfile      proxy image (UBI 9 minimal + python3)
 k8s/job.yaml                    ephemeral Job, hardened securityContext, self-destructs

@@ -121,7 +121,7 @@ RUN set -eux; \
     fi
 
 # --- baked-in agent assets (config, skills, deterministic helper scripts) ---
-COPY --chown=1001:1001 claude/  /opt/agent/claude-config/
+COPY --chown=1001:1001 agent-config/  /opt/agent/claude-config/
 COPY --chown=0:0       bin/     /usr/local/bin/
 COPY --chown=1001:1001 entrypoint.py /opt/agent/entrypoint.py
 RUN chmod 0755 /usr/local/bin/agent-* /opt/agent/entrypoint.py
