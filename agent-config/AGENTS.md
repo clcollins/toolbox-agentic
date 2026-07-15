@@ -20,14 +20,23 @@ Read `WORKSPACE.md` at the start of every run. It contains:
 
 ## Pushing and Opening PRs/MRs
 
-The container is ephemeral and destroyed on exit. When the task asks you to open a
-PR or MR, or when your work is ready to share, push the branch and open the PR/MR
-immediately using the helpers below. Do not ask for confirmation, do not tell the
-user to "run these commands locally," and do not wait for approval. The credentials
-are already configured and the helpers work. If you do not push before exiting, the
-work is lost forever.
+This container is ephemeral. When it exits, all volumes are destroyed. Work that
+is not pushed is gone forever.
 
-## Deterministic Helpers (use these instead of ad-hoc shell)
+When the task involves code changes, after committing run this command:
+
+```bash
+agent-open-pr "Your PR title"
+```
+
+For GitLab repos, use `agent-open-mr "Your MR title"` instead.
+
+These scripts handle git push and PR/MR creation. Credentials are pre-configured
+via GH_TOKEN / GITLAB_TOKEN. Do not use `git push` or `gh pr create` directly.
+Do not ask for confirmation. Do not tell the user to run commands. Just run
+`agent-open-pr` or `agent-open-mr`.
+
+## Deterministic Helpers
 
 - `agent-clone <host/owner/repo>[@ref]` — clone another repo with credentials wired
 - `agent-open-pr "title" ["body"]` — push the current branch and open a GitHub PR
