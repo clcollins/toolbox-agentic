@@ -61,6 +61,10 @@ def log(msg):
     print(f"[entrypoint] {msg}", flush=True)
 
 
+def warn(msg):
+    print(f"[entrypoint][WARNING] {msg}", flush=True)
+
+
 def die(msg, code=1):
     print(f"[entrypoint][FATAL] {msg}", file=sys.stderr, flush=True)
     sys.exit(code)
@@ -69,6 +73,14 @@ def die(msg, code=1):
 def run(cmd, **kw):
     kw.setdefault("check", True)
     return subprocess.run(cmd, **kw)
+
+
+def redact(val):
+    if not val:
+        return "(not set)"
+    if len(val) <= 4:
+        return "*" * len(val)
+    return val[:4] + "*" * min(len(val) - 4, 20)
 
 
 def materialize_adc():
@@ -130,6 +142,103 @@ def preflight():
     if not (os.environ.get("AGENT_REPOS") or os.environ.get("AGENT_CONTROL_REPO")):
         die("Provide AGENT_REPOS or AGENT_CONTROL_REPO.")
     WORKSPACE.mkdir(parents=True, exist_ok=True)
+    check_forge_credentials()
+
+
+def check_forge_credentials():
+    """Warn if repos target a forge but the matching token is missing."""
+    warnings = []
+    repos = os.environ.get("AGENT_REPOS", "")
+    if "github.com" in repos and not os.environ.get("GH_TOKEN"):
+        warnings.append("repos include github.com but GH_TOKEN is not set — push/PR will fail")
+    if "gitlab.com" in repos and not os.environ.get("GITLAB_TOKEN"):
+        host = os.environ.get("GITLAB_HOST", "gitlab.com")
+        warnings.append(f"repos include {host} but GITLAB_TOKEN is not set — push/MR will fail")
+    for w in warnings:
+        warn(w)
+    return warnings
+
+
+def check_writable_paths():
+    """Verify the three writable mount points are actually writable."""
+    results = {}
+    for p in [HOME, WORKSPACE, Path("/tmp")]:
+        try:
+            probe = p / ".write-test"
+            probe.write_text("ok")
+            probe.unlink()
+            results[str(p)] = True
+        except OSError:
+            results[str(p)] = False
+    return results
+
+
+def check_binaries():
+    """Check required binaries are on PATH."""
+    results = {}
+    for name in ["claude", "git", "gh", "glab", "go", "rg"]:
+        results[name] = shutil.which(name) is not None
+    return results
+
+
+def check_baked_config():
+    """Check baked agent config exists."""
+    return (BAKED_CFG / "AGENTS.md").is_file()
+
+
+def print_config_summary():
+    """Print full config summary with redacted secrets, then exit."""
+    p = log
+    p("=== Agent Runner Preflight ===")
+    if _has_vertex_auth():
+        p(f"Claude auth:    Vertex AI (project={os.environ.get('VERTEXAI_PROJECT')}, "
+          f"location={os.environ.get('VERTEXAI_LOCATION', 'unset')})")
+    elif os.environ.get("ANTHROPIC_API_KEY"):
+        p(f"Claude auth:    ANTHROPIC_API_KEY ({redact(os.environ.get('ANTHROPIC_API_KEY'))})")
+    else:
+        p("Claude auth:    NOT CONFIGURED")
+    p(f"GH_TOKEN:       {redact(os.environ.get('GH_TOKEN'))}")
+    p(f"GITLAB_TOKEN:   {redact(os.environ.get('GITLAB_TOKEN'))}")
+    p(f"AGENT_REPOS:    {os.environ.get('AGENT_REPOS', '(not set)')}")
+    task = (os.environ.get("AGENT_TASK") or "").strip()
+    if task:
+        preview = task[:60].replace("\n", " ")
+        p(f"AGENT_TASK:     ({len(task)} chars, starts with \"{preview}...\")")
+    else:
+        p(f"AGENT_TASK:     (not set)")
+    p(f"AGENT_MODE:     {os.environ.get('AGENT_MODE', 'online')}")
+    p(f"AGENT_INTERACTIVE: {os.environ.get('AGENT_INTERACTIVE', '(not set)')}")
+
+    writable = check_writable_paths()
+    parts = [f"{path} {'OK' if ok else 'FAIL'}" for path, ok in writable.items()]
+    p(f"Writable paths: {', '.join(parts)}")
+
+    bins = check_binaries()
+    parts = [f"{name} {'OK' if ok else 'MISSING'}" for name, ok in bins.items()]
+    p(f"Binaries:       {', '.join(parts)}")
+
+    baked = check_baked_config()
+    p(f"Baked config:   {BAKED_CFG / 'AGENTS.md'} {'OK' if baked else 'MISSING'}")
+
+    warnings = check_forge_credentials()
+    writable_fails = [p for p, ok in writable.items() if not ok]
+    bin_fails = [n for n, ok in bins.items() if not ok]
+
+    total_warnings = len(warnings) + len(writable_fails) + len(bin_fails) + (0 if baked else 1)
+    if total_warnings:
+        p(f"=== {total_warnings} WARNING(S) ===")
+        for w in warnings:
+            warn(w)
+        for path in writable_fails:
+            warn(f"{path} is not writable")
+        for name in bin_fails:
+            warn(f"{name} binary not found on PATH")
+        if not baked:
+            warn(f"baked config {BAKED_CFG / 'AGENTS.md'} not found")
+    else:
+        p("=== ALL CHECKS PASSED ===")
+
+    return total_warnings
 
 
 def seed_claude_config():
@@ -372,6 +481,9 @@ def write_workspace_md(rows, go_work):
 def launch_claude(task):
     args = ["claude", "--dangerously-skip-permissions"]  # safe ONLY behind container+network walls
     if os.environ.get("AGENT_INTERACTIVE") == "1":
+        # seed config with a no-op headless run so the interactive session
+        # skips the first-run onboarding wizard (theme picker, etc.)
+        run(["claude", "--dangerously-skip-permissions", "-p", "exit"])
         if task:
             args.append(task)
         log("launching claude (interactive)")
@@ -383,6 +495,11 @@ def launch_claude(task):
 
 def main():
     materialize_adc()
+
+    if "--preflight" in sys.argv:
+        warnings = print_config_summary()
+        sys.exit(1 if warnings else 0)
+
     preflight()
     seed_claude_config()
     configure_git()

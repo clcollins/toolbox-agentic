@@ -54,6 +54,8 @@ Run `make help` for the full list. Key targets:
 | `make run` | Run agent headless (requires `AGENT_TASK`, `AGENT_REPOS`, and auth env vars) |
 | `make run-interactive` | Run agent interactively (chat with Claude) |
 | `make run-offline` | Run agent in air-gapped `offline-go` mode |
+| `make run-preflight` | Print config summary with redacted secrets, then exit |
+| `make run-debug` | Drop into a bash shell inside the agent container |
 | `make build-offline-cache` | Bake module + toolchain cache for offline runs |
 | `make test` | Run all checks in a containerized CI environment |
 | `make test-all` | Run all checks + build both images |
@@ -61,6 +63,16 @@ Run `make help` for the full list. Key targets:
 
 By default the Makefile uses `podman`. Set `CONTAINER_SUBSYS=docker` to use Docker
 instead.
+
+## Debugging
+
+`make run-preflight` runs all validation checks inside the container and prints a
+config summary with redacted secrets, then exits. Use it to verify credentials,
+writable paths, and binaries before spending tokens on a real run.
+
+`make run-debug` drops you into a bash shell inside the hardened container with all
+volumes and the egress proxy running. From there you can inspect the environment,
+test credential helpers (`gh auth status`), and verify the baked config.
 
 ## Architecture
 
