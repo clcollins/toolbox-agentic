@@ -486,11 +486,9 @@ def write_workspace_md(rows, go_work):
 
 
 def launch_claude(task):
+    os.environ["CLAUDE_CODE_SKIP_ONBOARDING"] = "1"
     args = ["claude", "--dangerously-skip-permissions"]  # safe ONLY behind container+network walls
     if os.environ.get("AGENT_INTERACTIVE") == "1":
-        # seed config with a no-op headless run so the interactive session
-        # skips the first-run onboarding wizard (theme picker, etc.)
-        run(["claude", "--dangerously-skip-permissions", "-p", "exit"])
         if task:
             args.append(task)
         log("launching claude (interactive)")
