@@ -99,7 +99,7 @@ fi
 
 # 3) the agent — maximally fenced, non-root, read-only rootfs, no host mounts.
 # NOT exec'd, so the cleanup trap fires (removes proxy, network, volumes) on exit.
-podman run --rm --name "$AGENT" \
+podman run --rm ${AGENT_INTERACTIVE:+-it} --name "$AGENT" \
   --network "$NET" \
   --user 1001:1001 --userns keep-id \
   --cap-drop=ALL \
