@@ -196,8 +196,10 @@ def print_config_summary():
     p = log
     p("=== Agent Runner Preflight ===")
     if _has_vertex_auth():
-        p(f"Claude auth:    Vertex AI (project={os.environ.get('VERTEXAI_PROJECT')}, "
-          f"location={os.environ.get('VERTEXAI_LOCATION', 'unset')})")
+        p(
+            f"Claude auth:    Vertex AI (project={os.environ.get('VERTEXAI_PROJECT')}, "
+            f"location={os.environ.get('VERTEXAI_LOCATION', 'unset')})"
+        )
     elif os.environ.get("ANTHROPIC_API_KEY"):
         p(f"Claude auth:    ANTHROPIC_API_KEY ({redact(os.environ.get('ANTHROPIC_API_KEY'))})")
     else:
@@ -208,7 +210,7 @@ def print_config_summary():
     task = (os.environ.get("AGENT_TASK") or "").strip()
     if task:
         preview = task[:60].replace("\n", " ")
-        p(f"AGENT_TASK:     ({len(task)} chars, starts with \"{preview}...\")")
+        p(f'AGENT_TASK:     ({len(task)} chars, starts with "{preview}...")')
     else:
         p("AGENT_TASK:     (not set)")
     p(f"AGENT_MODE:     {os.environ.get('AGENT_MODE', 'online')}")
