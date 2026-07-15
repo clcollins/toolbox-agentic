@@ -372,6 +372,9 @@ def write_workspace_md(rows, go_work):
 def launch_claude(task):
     args = ["claude", "--dangerously-skip-permissions"]  # safe ONLY behind container+network walls
     if os.environ.get("AGENT_INTERACTIVE") == "1":
+        if task:
+            args.append(task)
+        log("launching claude (interactive)")
         os.execvp("claude", args)
     args += ["-p", task]
     log("launching claude (headless)")
