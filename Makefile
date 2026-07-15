@@ -173,6 +173,14 @@ run-interactive: ## Run agent interactively
 run-offline: ## Run agent in offline-go mode
 	AGENT_MODE=offline-go ./scripts/run-podman.sh
 
+.PHONY: run-debug
+run-debug: ## Drop into agent container shell for debugging
+	AGENT_DEBUG=1 ./scripts/run-podman.sh
+
+.PHONY: run-preflight
+run-preflight: ## Show agent config summary (redacted secrets)
+	AGENT_PREFLIGHT=1 ./scripts/run-podman.sh
+
 .PHONY: build-offline-cache
 build-offline-cache: ## Build offline Go cache image via scripts/make-offline-cache.sh
 	./scripts/make-offline-cache.sh

@@ -42,25 +42,48 @@ trap cleanup EXIT
 podman volume create "$HOMEVOL" >/dev/null
 podman volume create "$WORKVOL" >/dev/null
 
-# Validate that at least one auth method is configured
-if [[ -z "${ANTHROPIC_API_KEY:-}" ]] && [[ "${CLAUDE_CODE_USE_VERTEX:-}" != "1" ]]; then
-  echo "ERROR: no Claude auth configured." >&2
-  echo "  Set ANTHROPIC_API_KEY for direct API access, or" >&2
-  echo "  Set CLAUDE_CODE_USE_VERTEX=1 with VERTEXAI_PROJECT for Vertex AI." >&2
-  exit 1
-fi
+# Debug and preflight modes skip strict validation
+if [[ "${AGENT_DEBUG:-}" != "1" ]] && [[ "${AGENT_PREFLIGHT:-}" != "1" ]]; then
+  # Validate that at least one auth method is configured
+  if [[ -z "${ANTHROPIC_API_KEY:-}" ]] && [[ "${CLAUDE_CODE_USE_VERTEX:-}" != "1" ]]; then
+    echo "ERROR: no Claude auth configured." >&2
+    echo "  Set ANTHROPIC_API_KEY for direct API access, or" >&2
+    echo "  Set CLAUDE_CODE_USE_VERTEX=1 with VERTEXAI_PROJECT for Vertex AI." >&2
+    exit 1
+  fi
 
-# Validate required agent inputs
-if [[ -z "${AGENT_REPOS:-}" ]] && [[ -z "${AGENT_CONTROL_REPO:-}" ]]; then
-  echo "ERROR: no repositories specified." >&2
-  echo "  Set AGENT_REPOS='host/owner/repo[@ref] ...' (space-separated), or" >&2
-  echo "  Set AGENT_CONTROL_REPO to a git URL containing a repos.txt manifest." >&2
-  exit 1
+  # Validate required agent inputs
+  if [[ -z "${AGENT_REPOS:-}" ]] && [[ -z "${AGENT_CONTROL_REPO:-}" ]]; then
+    echo "ERROR: no repositories specified." >&2
+    echo "  Set AGENT_REPOS='host/owner/repo[@ref] ...' (space-separated), or" >&2
+    echo "  Set AGENT_CONTROL_REPO to a git URL containing a repos.txt manifest." >&2
+    exit 1
+  fi
 fi
 if [[ -z "${AGENT_TASK:-}" ]] && [[ -z "${AGENT_TASK_FILE:-}" ]]; then
-  echo "ERROR: no task specified." >&2
-  echo "  Set AGENT_TASK='your prompt', or" >&2
-  echo "  Set AGENT_TASK_FILE to a file containing the prompt." >&2
+  if [[ "${AGENT_DEBUG:-}" != "1" ]] && [[ "${AGENT_PREFLIGHT:-}" != "1" ]]; then
+    echo "ERROR: no task specified." >&2
+    echo "  Set AGENT_TASK='your prompt', or" >&2
+    echo "  Set AGENT_TASK_FILE to a file containing the prompt." >&2
+    exit 1
+  fi
+fi
+
+# Warn if forge credentials are missing for targeted repos
+if [[ "${AGENT_REPOS:-}" == *github.com* ]] && [[ -z "${GH_TOKEN:-}" ]]; then
+  echo "WARNING: repos include github.com but GH_TOKEN is not set — push/PR will fail" >&2
+fi
+if [[ "${AGENT_REPOS:-}" == *gitlab.com* ]] && [[ -z "${GITLAB_TOKEN:-}" ]]; then
+  echo "WARNING: repos include gitlab.com but GITLAB_TOKEN is not set — push/MR will fail" >&2
+fi
+
+# Check container images exist locally
+if ! podman image exists "$IMAGE" 2>/dev/null; then
+  echo "ERROR: image $IMAGE not found. Run: make image-build" >&2
+  exit 1
+fi
+if ! podman image exists "$PROXY_IMAGE" 2>/dev/null; then
+  echo "ERROR: image $PROXY_IMAGE not found. Run: make image-build-proxy" >&2
   exit 1
 fi
 
@@ -99,7 +122,23 @@ fi
 
 # 3) the agent — maximally fenced, non-root, read-only rootfs, no host mounts.
 # NOT exec'd, so the cleanup trap fires (removes proxy, network, volumes) on exit.
-podman run --rm ${AGENT_INTERACTIVE:+-it -e TERM="${TERM:-xterm-256color}"} --name "$AGENT" \
+
+# Build mode-specific flags
+INTERACTIVE_FLAGS=""
+if [[ -n "${AGENT_INTERACTIVE:-}" ]] || [[ "${AGENT_DEBUG:-}" == "1" ]]; then
+  INTERACTIVE_FLAGS="-it -e TERM=${TERM:-xterm-256color}"
+fi
+
+ENTRYPOINT_OVERRIDE=""
+ENTRYPOINT_ARGS=""
+if [[ "${AGENT_DEBUG:-}" == "1" ]]; then
+  ENTRYPOINT_OVERRIDE="--entrypoint /bin/bash"
+elif [[ "${AGENT_PREFLIGHT:-}" == "1" ]]; then
+  ENTRYPOINT_ARGS="--preflight"
+fi
+
+# shellcheck disable=SC2086
+podman run --rm $INTERACTIVE_FLAGS $ENTRYPOINT_OVERRIDE --name "$AGENT" \
   --network "$NET" \
   --user 1001:1001 --userns keep-id \
   --cap-drop=ALL \
@@ -134,4 +173,4 @@ podman run --rm ${AGENT_INTERACTIVE:+-it -e TERM="${TERM:-xterm-256color}"} --na
   ${AGENT_GO_WORK:+-e AGENT_GO_WORK="$AGENT_GO_WORK"} \
   ${AGENT_INTERACTIVE:+-e AGENT_INTERACTIVE="$AGENT_INTERACTIVE"} \
   ${AGENT_CACHE_ONLY:+-e AGENT_CACHE_ONLY="$AGENT_CACHE_ONLY"} \
-  "$IMAGE"
+  "$IMAGE" $ENTRYPOINT_ARGS
