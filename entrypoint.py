@@ -145,8 +145,11 @@ def preflight():
     check_forge_credentials()
 
 
-def check_forge_credentials():
-    """Warn if repos target a forge but the matching token is missing."""
+def check_forge_credentials(emit=True):
+    """Check if repos target a forge but the matching token is missing.
+
+    Returns list of warning strings. Prints them if emit=True.
+    """
     warnings = []
     repos = os.environ.get("AGENT_REPOS", "")
     if "github.com" in repos and not os.environ.get("GH_TOKEN"):
@@ -154,15 +157,17 @@ def check_forge_credentials():
     if "gitlab.com" in repos and not os.environ.get("GITLAB_TOKEN"):
         host = os.environ.get("GITLAB_HOST", "gitlab.com")
         warnings.append(f"repos include {host} but GITLAB_TOKEN is not set — push/MR will fail")
-    for w in warnings:
-        warn(w)
+    if emit:
+        for w in warnings:
+            warn(w)
     return warnings
 
 
 def check_writable_paths():
     """Verify the three writable mount points are actually writable."""
     results = {}
-    for p in [HOME, WORKSPACE, Path("/tmp")]:
+    tmpdir = Path("/tmp")  # noqa: S108
+    for p in [HOME, WORKSPACE, tmpdir]:
         try:
             probe = p / ".write-test"
             probe.write_text("ok")
@@ -205,7 +210,7 @@ def print_config_summary():
         preview = task[:60].replace("\n", " ")
         p(f"AGENT_TASK:     ({len(task)} chars, starts with \"{preview}...\")")
     else:
-        p(f"AGENT_TASK:     (not set)")
+        p("AGENT_TASK:     (not set)")
     p(f"AGENT_MODE:     {os.environ.get('AGENT_MODE', 'online')}")
     p(f"AGENT_INTERACTIVE: {os.environ.get('AGENT_INTERACTIVE', '(not set)')}")
 
@@ -220,9 +225,9 @@ def print_config_summary():
     baked = check_baked_config()
     p(f"Baked config:   {BAKED_CFG / 'AGENTS.md'} {'OK' if baked else 'MISSING'}")
 
-    warnings = check_forge_credentials()
-    writable_fails = [p for p, ok in writable.items() if not ok]
-    bin_fails = [n for n, ok in bins.items() if not ok]
+    warnings = check_forge_credentials(emit=False)
+    writable_fails = [path for path, ok in writable.items() if not ok]
+    bin_fails = [name for name, ok in bins.items() if not ok]
 
     total_warnings = len(warnings) + len(writable_fails) + len(bin_fails) + (0 if baked else 1)
     if total_warnings:
