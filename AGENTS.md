@@ -43,6 +43,24 @@ scripts/make-offline-cache.sh  Admin tool: bake module+toolchain cache for offli
 - **No host mounts** — repos are cloned into ephemeral volumes at runtime
 - **Security-first** — cap-drop ALL, no-new-privileges, seccomp, SELinux enforcing
 
+## Claude Config: Repo vs. Baked Image
+
+This repo has two separate sets of Claude instructions for two different audiences:
+
+**Repo-level** (for developers working on toolbox-agentic itself):
+- `CLAUDE.md` — imports `@AGENTS.md`
+- `AGENTS.md` — this file; project overview, conventions, file descriptions
+
+**Baked into the container image** (for the agent running inside the container
+against target repos):
+- `agent-config/CLAUDE.md` — imports `@AGENTS.md`
+- `agent-config/AGENTS.md` — runtime instructions: workspace paths, push/PR
+  policy, helper usage, Go development, commit conventions, security boundaries
+
+The `agent-config/` files are copied into the image at build time and seeded into
+`~/.claude/` by `entrypoint.py` before Claude launches. The `@AGENTS.md` import in
+each `CLAUDE.md` resolves to the `AGENTS.md` in the same directory.
+
 ## File Descriptions
 
 ### `Containerfile`
@@ -73,9 +91,13 @@ Claude Code permission config: allow-list for agent-* helpers and Go/git tooling
 deny-list for credential paths, PostToolUse gofmt hook, env vars to disable
 auto-updates and telemetry.
 
+### `agent-config/AGENTS.md`
+Operating instructions baked into the agent: workspace orientation, push/PR policy,
+helper usage, Go development, commit trailer convention (`Co-Authored-By`), security
+boundaries.
+
 ### `agent-config/CLAUDE.md`
-Operating instructions baked into the agent: workspace orientation, helper usage,
-commit trailer convention (`Co-Authored-By`), security boundaries.
+Imports `@AGENTS.md` so Claude Code loads the agent-config AGENTS.md at runtime.
 
 ### `egress-proxy/policy.py`
 Stdlib-only HTTP proxy implementing two traffic classes:
