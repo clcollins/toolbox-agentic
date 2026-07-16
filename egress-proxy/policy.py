@@ -53,6 +53,9 @@ TRUSTED_HOSTS = {
     # Go modules / checksum db / registries
     "proxy.golang.org",
     "sum.golang.org",
+    "storage.googleapis.com",
+    "google.golang.org",
+    "golang.org",
     "goproxy.io",
     "registry.npmjs.org",
     "pypi.org",
@@ -66,6 +69,9 @@ _TRUSTED_SUFFIXES = ("-aiplatform.googleapis.com",)
 _PACKAGE_HOSTS = {
     "proxy.golang.org",
     "sum.golang.org",
+    "storage.googleapis.com",
+    "google.golang.org",
+    "golang.org",
     "goproxy.io",
     "registry.npmjs.org",
     "pypi.org",
