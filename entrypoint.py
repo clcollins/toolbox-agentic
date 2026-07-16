@@ -509,6 +509,7 @@ def skip_onboarding():
 
 def launch_claude(task):
     skip_onboarding()
+    os.environ["CLAUBBIT"] = "1"
     args = ["claude", "--dangerously-skip-permissions"]  # safe ONLY behind container+network walls
     if os.environ.get("AGENT_INTERACTIVE") == "1":
         if task:
