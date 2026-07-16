@@ -485,8 +485,31 @@ def write_workspace_md(rows, go_work):
     return task
 
 
+def skip_onboarding():
+    """Pre-seed ~/.claude.json so the first-run wizard doesn't fire.
+
+    Claude Code stores onboarding state in ~/.claude.json (at $HOME root,
+    not inside ~/.claude/). Without this, every ephemeral container launch
+    shows the theme picker, security notice, and "Press Enter to continue".
+    """
+    import json
+
+    claude_json = HOME / ".claude.json"
+    config = {}
+    if claude_json.is_file():
+        try:
+            config = json.loads(claude_json.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    config["hasCompletedOnboarding"] = True
+    config.setdefault("projects", {})[str(WORKSPACE)] = {
+        "hasTrustDialogAccepted": True,
+    }
+    claude_json.write_text(json.dumps(config))
+
+
 def launch_claude(task):
-    os.environ["CLAUDE_CODE_SKIP_ONBOARDING"] = "1"
+    skip_onboarding()
     args = ["claude", "--dangerously-skip-permissions"]  # safe ONLY behind container+network walls
     if os.environ.get("AGENT_INTERACTIVE") == "1":
         if task:
