@@ -494,18 +494,17 @@ def skip_onboarding():
     """
     import json
 
-    claude_json = HOME / ".claude.json"
-    config = {}
-    if claude_json.is_file():
-        try:
-            config = json.loads(claude_json.read_text())
-        except (json.JSONDecodeError, OSError):
-            pass
-    config["hasCompletedOnboarding"] = True
-    config.setdefault("projects", {})[str(WORKSPACE)] = {
-        "hasTrustDialogAccepted": True,
+    config = {
+        "hasCompletedOnboarding": True,
+        "projects": {
+            str(WORKSPACE): {"hasTrustDialogAccepted": True},
+        },
     }
-    claude_json.write_text(json.dumps(config))
+    payload = json.dumps(config)
+    for path in [HOME / ".claude.json", CLAUDE_CFG / ".claude.json"]:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(payload)
+    log("pre-seeded .claude.json (onboarding skip)")
 
 
 def launch_claude(task):
