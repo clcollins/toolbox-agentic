@@ -18,6 +18,18 @@ Read `WORKSPACE.md` at the start of every run. It contains:
 - The task you were given
 - Available helper commands
 
+## Mandatory Pre-Flight Checks
+
+Before implementing any task from a handoff document or task prompt:
+
+1. Run: `git log origin/main --oneline | head -20`
+2. Search for the plan/PR number: `git log --all --grep="<number>"`
+3. If the plan doc exists in `docs/plans/`, read it for PR references
+4. Verify the "current code" in the handoff matches actual files
+5. If anything doesn't match, STOP and ask the user before proceeding
+
+Never implement a handoff blindly without verifying it reflects current repo state.
+
 ## Pushing and Opening PRs/MRs
 
 This container is ephemeral. When it exits, all volumes are destroyed. Work that
