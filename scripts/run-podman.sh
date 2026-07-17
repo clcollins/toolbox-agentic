@@ -34,9 +34,11 @@ AGENT="agent-$$"
 HOMEVOL="agent-home-$$"     # /home/agent  -> GOMODCACHE, GOCACHE, .claude
 WORKVOL="agent-work-$$"     # /workspace   -> all cloned repos
 
+INJECT_SECRETS=()
 cleanup() { podman rm -f "$AGENT" "$PROXY" >/dev/null 2>&1 || true
             podman network rm "$NET" >/dev/null 2>&1 || true
-            podman volume rm "$HOMEVOL" "$WORKVOL" >/dev/null 2>&1 || true; }
+            podman volume rm "$HOMEVOL" "$WORKVOL" >/dev/null 2>&1 || true
+            for s in "${INJECT_SECRETS[@]}"; do podman secret rm "$s" >/dev/null 2>&1 || true; done; }
 trap cleanup EXIT
 
 podman volume create "$HOMEVOL" >/dev/null
@@ -85,6 +87,48 @@ fi
 if ! podman image exists "$PROXY_IMAGE" 2>/dev/null; then
   echo "ERROR: image $PROXY_IMAGE not found. Run: make image-build-proxy" >&2
   exit 1
+fi
+
+# File injection: AGENT_INJECT is a comma-delimited list of source:target pairs.
+# Each source is a host file, each target is the container path (must be under a
+# writable mount: /home/agent/, /workspace/, or /tmp/). Files are injected via
+# podman secrets so no host directories are bind-mounted.
+#
+# Example: AGENT_INJECT="/path/to/script.sh:/home/agent/.injected/run.sh,/path/to/key:/home/agent/.ssh/id_ed25519"
+INJECT_FLAGS=""
+INJECTED_TARGETS=""
+if [[ -n "${AGENT_INJECT:-}" ]]; then
+  IFS=',' read -ra PAIRS <<< "$AGENT_INJECT"
+  for pair in "${PAIRS[@]}"; do
+    src="${pair%%:*}"
+    target="${pair#*:}"
+    if [[ -z "$src" ]] || [[ -z "$target" ]]; then
+      echo "ERROR: AGENT_INJECT pair '$pair' is malformed (expected source:target)" >&2
+      exit 1
+    fi
+    if [[ ! -f "$src" ]]; then
+      echo "ERROR: AGENT_INJECT source file does not exist: $src" >&2
+      exit 1
+    fi
+    case "$target" in
+      /home/agent/*|/workspace/*|/tmp/*)
+        ;;
+      *)
+        echo "ERROR: AGENT_INJECT target must be under /home/agent/, /workspace/, or /tmp/ (got: $target)" >&2
+        exit 1
+        ;;
+    esac
+    secret_name="agent-inject-$$-$(echo "$target" | tr '/' '-' | tr '.' '-')"
+    podman secret create "$secret_name" "$src" >/dev/null
+    INJECT_SECRETS+=("$secret_name")
+    INJECT_FLAGS="${INJECT_FLAGS} --secret ${secret_name},type=mount,target=${target}"
+    if [[ -n "$INJECTED_TARGETS" ]]; then
+      INJECTED_TARGETS="${INJECTED_TARGETS},${target}"
+    else
+      INJECTED_TARGETS="${target}"
+    fi
+    echo "inject: $src -> $target"
+  done
 fi
 
 # Vertex AI: read ADC credentials into an env var so entrypoint.py can write them
@@ -138,7 +182,7 @@ elif [[ "${AGENT_PREFLIGHT:-}" == "1" ]]; then
 fi
 
 # shellcheck disable=SC2086
-podman run --rm $INTERACTIVE_FLAGS $ENTRYPOINT_OVERRIDE --name "$AGENT" \
+podman run --rm $INTERACTIVE_FLAGS $ENTRYPOINT_OVERRIDE $INJECT_FLAGS --name "$AGENT" \
   --network "$NET" \
   --user 1001:1001 --userns keep-id \
   --cap-drop=ALL \
@@ -173,4 +217,5 @@ podman run --rm $INTERACTIVE_FLAGS $ENTRYPOINT_OVERRIDE --name "$AGENT" \
   ${AGENT_GO_WORK:+-e AGENT_GO_WORK="$AGENT_GO_WORK"} \
   ${AGENT_INTERACTIVE:+-e AGENT_INTERACTIVE="$AGENT_INTERACTIVE"} \
   ${AGENT_CACHE_ONLY:+-e AGENT_CACHE_ONLY="$AGENT_CACHE_ONLY"} \
+  ${INJECTED_TARGETS:+-e AGENT_INJECTED_FILES="$INJECTED_TARGETS"} \
   "$IMAGE" $ENTRYPOINT_ARGS

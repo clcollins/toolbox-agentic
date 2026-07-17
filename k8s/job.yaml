@@ -89,6 +89,30 @@ spec:
               value: "http://agent-egress-proxy.agents.svc:8080"
             - name: NO_PROXY
               value: "localhost,127.0.0.1"
+            # --- Behavior (uncomment as needed) ---
+            # - name: GIT_AUTHOR_NAME
+            #   value: "agent-bot"
+            # - name: GIT_AUTHOR_EMAIL
+            #   value: "agent-bot@localhost"
+            # - name: GITLAB_HOST
+            #   value: "gitlab.com"
+            # - name: AGENT_TASK_FILE
+            #   value: "/home/agent/.injected/task.md"
+            # - name: AGENT_WARM_TOOLCHAINS
+            #   value: "1"
+            # - name: AGENT_WARM_MODCACHE
+            #   value: "1"
+            # - name: AGENT_GO_WORK
+            #   value: "1"
+            # - name: AGENT_INTERACTIVE
+            #   value: "1"
+            # - name: AGENT_CACHE_ONLY
+            #   value: "1"
+            # - name: AGENT_GOCACHE_SRC
+            #   value: "/opt/go-cache"
+            # --- Injected files (list container paths for entrypoint logging) ---
+            # - name: AGENT_INJECTED_FILES
+            #   value: "/home/agent/.injected/run.sh,/home/agent/.ssh/id_ed25519"
           resources:
             requests:
               cpu: "2"
@@ -109,6 +133,13 @@ spec:
             # - name: gcloud-adc
             #   mountPath: /home/agent/.config/gcloud
             #   readOnly: true
+            # File injection: mount Secret or ConfigMap files into the container
+            # - name: injected-secrets
+            #   mountPath: /home/agent/.injected
+            #   readOnly: true
+            # - name: injected-config
+            #   mountPath: /home/agent/.injected-config
+            #   readOnly: true
       volumes:
         - name: home
           emptyDir:
@@ -124,3 +155,10 @@ spec:
         # - name: gcloud-adc
         #   secret:
         #     secretName: agent-gcloud-adc
+        # File injection: mount Secrets (sensitive files) or ConfigMaps (scripts, configs)
+        # - name: injected-secrets
+        #   secret:
+        #     secretName: agent-injected-files
+        # - name: injected-config
+        #   configMap:
+        #     name: agent-injected-config

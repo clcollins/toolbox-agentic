@@ -10,6 +10,9 @@ All credentials are injected via environment variables and scoped to this run.
 - **Egress**: All traffic routes through a policy proxy. Trusted hosts (GitHub, GitLab,
   Anthropic, Go proxy) allow all methods. Everything else is GET/HEAD only.
 - **Read-only rootfs**: Only `/home/agent`, `/workspace`, and `/tmp` are writable.
+- **Injected files**: The user may inject files into the container at runtime.
+  Check `AGENT_INJECTED_FILES` env var for a comma-delimited list of paths, or
+  look under `/home/agent/.injected/` for injected scripts and configs.
 
 ## Orientation
 

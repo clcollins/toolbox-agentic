@@ -191,6 +191,30 @@ def check_baked_config():
     return (BAKED_CFG / "AGENTS.md").is_file()
 
 
+WRITABLE_PREFIXES = ("/home/agent/", "/workspace/", "/tmp/")  # noqa: S108
+
+
+def log_injected_files():
+    """Log files injected via AGENT_INJECTED_FILES (comma-delimited container paths)."""
+    raw = (os.environ.get("AGENT_INJECTED_FILES") or "").strip()
+    if not raw:
+        return []
+    paths = [p.strip() for p in raw.split(",") if p.strip()]
+    results = []
+    for p in paths:
+        if not any(p.startswith(prefix) for prefix in WRITABLE_PREFIXES):
+            warn(f"injected file target outside writable mount: {p}")
+            results.append((p, False))
+            continue
+        exists = Path(p).is_file()
+        if exists:
+            log(f"injected file: {p} (OK)")
+        else:
+            warn(f"injected file missing: {p}")
+        results.append((p, exists))
+    return results
+
+
 def print_config_summary():
     """Print full config summary with redacted secrets, then exit."""
     p = log
@@ -226,6 +250,13 @@ def print_config_summary():
 
     baked = check_baked_config()
     p(f"Baked config:   {BAKED_CFG / 'AGENTS.md'} {'OK' if baked else 'MISSING'}")
+
+    injected = log_injected_files()
+    if injected:
+        parts = [f"{path} {'OK' if ok else 'MISSING'}" for path, ok in injected]
+        p(f"Injected files: {', '.join(parts)}")
+    else:
+        p("Injected files: (none)")
 
     warnings = check_forge_credentials(emit=False)
     writable_fails = [path for path, ok in writable.items() if not ok]
@@ -530,6 +561,7 @@ def main():
 
     preflight()
     seed_claude_config()
+    log_injected_files()
     configure_git()
     configure_go_mode()
     cloned = clone_all(list(repo_specs()))

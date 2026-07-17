@@ -79,6 +79,7 @@ AGENT_GOCACHE_SRC ?=
 AGENT_CI_TIMEOUT ?=
 AGENT_WORKSPACE ?=
 GOPRIVATE ?=
+AGENT_INJECT ?=
 
 # ---------------------------------------------------------------------------
 # Proxy
