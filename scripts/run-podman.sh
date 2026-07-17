@@ -18,6 +18,101 @@
 # Prefer `podman secret` over -e in production; -e is shown here for clarity.
 set -euo pipefail
 
+show_help() {
+cat <<'HELPTEXT'
+TOOLBOX-AGENTIC — Hardened Claude Code Agent Runner
+====================================================
+
+QUICKSTART:
+  git clone https://github.com/clcollins/toolbox-agentic.git
+  cd toolbox-agentic
+  make image-build-all
+  ANTHROPIC_API_KEY="$KEY" GH_TOKEN="$TOKEN" \
+    AGENT_REPOS="github.com/owner/repo" \
+    AGENT_TASK="Your task prompt here" \
+    make run
+
+MAKE TARGETS:
+  make image-build-all    Build agent-runner + egress-proxy images
+  make run                Run agent headless (fire-and-forget)
+  make run-interactive    Run agent with interactive chat
+  make run-offline        Run in air-gapped mode
+  make run-preflight      Print config summary with redacted secrets
+  make run-debug          Drop into bash shell inside the container
+  make test               Run all CI checks (containerized)
+  make clean              Remove dangling agent volumes/networks
+  make help               Show this help
+
+REQUIRED ENV VARS:
+  Auth (one required):
+    ANTHROPIC_API_KEY           Direct Anthropic API key
+    CLAUDE_CODE_USE_VERTEX=1    Vertex AI (also set VERTEXAI_PROJECT,
+                                VERTEXAI_LOCATION, CLOUD_ML_REGION,
+                                ANTHROPIC_VERTEX_PROJECT_ID)
+
+  Task (one required):
+    AGENT_TASK                  Task prompt string
+    AGENT_TASK_FILE             Path to file containing task prompt
+
+  Repos (one required):
+    AGENT_REPOS                 Space-separated "host/owner/repo[@ref]" specs
+    AGENT_CONTROL_REPO          Git URL of repo with repos.txt manifest
+
+OPTIONAL ENV VARS:
+  Git Auth:
+    GH_TOKEN                    GitHub fine-grained PAT (Contents RW, PRs RW)
+    GITLAB_TOKEN                GitLab PAT (write_repository, api)
+    GITLAB_HOST                 Self-managed GitLab host (default: gitlab.com)
+    GIT_AUTHOR_NAME             Commit author (default: agent-bot)
+    GIT_AUTHOR_EMAIL            Commit email (default: agent-bot@localhost)
+
+  Behavior:
+    AGENT_MODE                  "online" (default) or "offline-go"
+    AGENT_INTERACTIVE           Set to "1" for interactive chat session
+    AGENT_WARM_TOOLCHAINS       Set to "1" to pre-download Go toolchains
+    AGENT_WARM_MODCACHE         Set to "1" to pre-download Go modules
+    AGENT_GO_WORK               Set to "1" to create go.work for multi-repo
+    AGENT_CACHE_ONLY            Set to "1" to warm caches and exit
+    GOPRIVATE                   Go private module pattern
+
+  File Injection:
+    AGENT_INJECT                Comma-delimited "source:target" pairs
+                                Each source is a host file, each target is
+                                a container path under /home/agent/,
+                                /workspace/, or /tmp/
+                                Example: "/tmp/run.sh:/home/agent/.injected/run.sh"
+
+  Debug:
+    AGENT_DEBUG                 Set to "1" to drop into container shell
+    AGENT_PREFLIGHT             Set to "1" to print config and exit
+
+CONTAINER PATHS (inside the agent):
+  /workspace                    Cloned repos live here
+  /home/agent                   Go caches, Claude config
+  /home/agent/.injected/        Convention for injected files
+  /tmp                          Build artifacts (tmpfs, 1Gi)
+  (everything else is read-only)
+
+HELPER COMMANDS (available inside the container):
+  agent-open-pr "title" ["body"]     Push branch + open GitHub PR
+  agent-open-mr "title" ["body"]     Push branch + open GitLab MR
+  agent-clone <host/owner/repo>      Clone with credentials wired
+  agent-ci-watch [github|gitlab]     Poll CI to completion
+
+NOTES:
+  - Container runs non-root (uid 1001), read-only rootfs, all caps dropped
+  - All egress routes through a policy proxy (allow-listed hosts only)
+  - Ephemeral: container + volumes destroyed on exit
+  - Use .env file at repo root for persistent env var configuration
+  - Set CONTAINER_SUBSYS=docker to use Docker instead of Podman
+HELPTEXT
+}
+
+if [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "-h" ]]; then
+  show_help
+  exit 0
+fi
+
 IMAGE="${IMAGE:-localhost/agent-runner:go}"
 PROXY_IMAGE="${PROXY_IMAGE:-localhost/agent-egress-proxy:latest}"
 # Invocation type: "online" (default) or "offline-go" (air-gapped Go builds — deps and
