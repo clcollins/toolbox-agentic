@@ -74,6 +74,28 @@ writable paths, and binaries before spending tokens on a real run.
 volumes and the egress proxy running. From there you can inspect the environment,
 test credential helpers (`gh auth status`), and verify the baked config.
 
+## Injecting Files
+
+Inject host files into the container using `AGENT_INJECT`, a comma-delimited list
+of `source:target` pairs. Each source is a host file path, each target is the
+container path (must be under `/home/agent/`, `/workspace/`, or `/tmp/`).
+
+```bash
+AGENT_INJECT="/path/to/script.sh:/home/agent/.injected/run.sh,~/.ssh/deploy_key:/home/agent/.ssh/id_ed25519" \
+AGENT_TASK="Run /home/agent/.injected/run.sh then open a PR" \
+AGENT_REPOS="github.com/your-org/your-repo" \
+  make run
+```
+
+Files are injected via `podman secret` (no host directories are bind-mounted).
+The entrypoint logs each injected file path at startup. Use `make run-preflight`
+to verify injected files are present before spending tokens.
+
+On **Kubernetes**, use Secret or ConfigMap volumes instead. See the commented-out
+examples in `k8s/job.yaml` and `k8s/configmap.example.yaml`. Set
+`AGENT_INJECTED_FILES` to a comma-delimited list of container paths so the
+entrypoint logs them consistently.
+
 ## Architecture
 
 ```
