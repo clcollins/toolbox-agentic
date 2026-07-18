@@ -289,6 +289,20 @@ def seed_claude_config():
     log(f"seeded Claude config into {CLAUDE_CFG}")
 
 
+def seed_ssh_known_hosts():
+    """Copy baked SSH known_hosts into the writable home volume."""
+    baked = Path("/opt/agent/ssh/known_hosts")
+    if not baked.is_file():
+        return
+    ssh_dir = HOME / ".ssh"
+    ssh_dir.mkdir(parents=True, exist_ok=True)
+    os.chmod(ssh_dir, 0o700)
+    dst = ssh_dir / "known_hosts"
+    shutil.copy2(baked, dst)
+    os.chmod(dst, 0o644)
+    log(f"seeded SSH known_hosts ({sum(1 for _ in dst.read_text().splitlines())} hosts)")
+
+
 def configure_git():
     run(["git", "config", "--global", "user.name", os.environ.get("GIT_AUTHOR_NAME", "agent-bot")])
     run(["git", "config", "--global", "user.email", os.environ.get("GIT_AUTHOR_EMAIL", "agent-bot@localhost")])
@@ -561,6 +575,7 @@ def main():
 
     preflight()
     seed_claude_config()
+    seed_ssh_known_hosts()
     log_injected_files()
     configure_git()
     configure_go_mode()

@@ -103,6 +103,23 @@ RUN set -eux; \
     useradd -u 1001 -g 1001 -m -d /home/agent -s /bin/bash agent; \
     mkdir -p /workspace /opt/agent /home/agent/.config/go && chown -R 1001:1001 /workspace /home/agent /opt/agent
 
+# --- SSH known_hosts for GitHub, GitLab, and internal GitLab ---
+# Keys sourced from official APIs (github.com/meta, ssh-keyscan for GitLab).
+# Baked into /opt/agent/ so entrypoint.py can seed ~/.ssh/ at runtime
+# (the home volume is ephemeral and masks image contents).
+RUN set -eux; \
+    mkdir -p /opt/agent/ssh; \
+    printf '%s\n' \
+      'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' \
+      'github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=' \
+      'gitlab.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAfuCHKVTjquxvt6CM6tdG4SLp1Btn/nOeHHE5UOzRdf' \
+      'gitlab.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBFSMqzJeV9rUzU4kWitGjeR4PWSa29SPqJ1fVkhtj3Hw9xjLVXVYrU9QlYWrOLXBpQ6KWjbjTDTdDkoohFzgbEY=' \
+      'gitlab.cee.redhat.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICBgflBIyju1LV/29PmFDw0GLdB9h0JUXglNrvWjBQ2u' \
+      'gitlab.cee.redhat.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBNJJ7oW5YthSOORuIael9+pvEwkGc0VZxLlqvufzjYk09JV82f+UZRcsjud2cPUSogvgmGGtLKqmwLLeKhe6xgc=' \
+      > /opt/agent/ssh/known_hosts; \
+    chmod 644 /opt/agent/ssh/known_hosts; \
+    chown 1001:1001 /opt/agent/ssh/known_hosts
+
 # --- OPTIONAL: prebake Go toolchains for the air-gapped (offline-go) invocation ---
 # Space-separated versions your repos pin, e.g. "go1.24.3 go1.25.7 go1.26.5".
 # Baked into /opt/go-cache (a GOMODCACHE-shaped dir NOT masked by the runtime volume);
