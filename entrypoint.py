@@ -238,6 +238,7 @@ def print_config_summary():
     else:
         p("AGENT_TASK:     (not set)")
     p(f"AGENT_MODE:     {os.environ.get('AGENT_MODE', 'online')}")
+    p(f"AGENT_MODEL:    {os.environ.get('AGENT_MODEL', '(default)')}")
     p(f"AGENT_INTERACTIVE: {os.environ.get('AGENT_INTERACTIVE', '(not set)')}")
 
     writable = check_writable_paths()
@@ -556,6 +557,10 @@ def skip_onboarding():
 def launch_claude(task):
     skip_onboarding()
     args = ["claude", "--dangerously-skip-permissions"]  # safe ONLY behind container+network walls
+    model = os.environ.get("AGENT_MODEL", "").strip()
+    if model:
+        args += ["--model", model]
+        log(f"model override: {model}")
     if os.environ.get("AGENT_INTERACTIVE") == "1":
         if task:
             args.append(task)
