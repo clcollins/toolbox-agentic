@@ -80,6 +80,7 @@ AGENT_CI_TIMEOUT ?=
 AGENT_WORKSPACE ?=
 GOPRIVATE ?=
 AGENT_INJECT ?=
+AGENT_MODEL ?=
 
 # ---------------------------------------------------------------------------
 # Proxy

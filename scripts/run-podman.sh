@@ -73,6 +73,7 @@ OPTIONAL ENV VARS:
     AGENT_WARM_MODCACHE         Set to "1" to pre-download Go modules
     AGENT_GO_WORK               Set to "1" to create go.work for multi-repo
     AGENT_CACHE_ONLY            Set to "1" to warm caches and exit
+    AGENT_MODEL                 Claude model (e.g. "opus", "sonnet", "claude-opus-4-8")
     GOPRIVATE                   Go private module pattern
 
   File Injection:
@@ -312,5 +313,6 @@ podman run --rm $INTERACTIVE_FLAGS $ENTRYPOINT_OVERRIDE $INJECT_FLAGS --name "$A
   ${AGENT_GO_WORK:+-e AGENT_GO_WORK="$AGENT_GO_WORK"} \
   ${AGENT_INTERACTIVE:+-e AGENT_INTERACTIVE="$AGENT_INTERACTIVE"} \
   ${AGENT_CACHE_ONLY:+-e AGENT_CACHE_ONLY="$AGENT_CACHE_ONLY"} \
+  ${AGENT_MODEL:+-e AGENT_MODEL="$AGENT_MODEL"} \
   ${INJECTED_TARGETS:+-e AGENT_INJECTED_FILES="$INJECTED_TARGETS"} \
   "$IMAGE" $ENTRYPOINT_ARGS
