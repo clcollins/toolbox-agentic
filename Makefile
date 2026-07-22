@@ -63,24 +63,24 @@ GIT_AUTHOR_NAME ?=
 GIT_AUTHOR_EMAIL ?=
 
 # ---------------------------------------------------------------------------
-# Agent behavior
+# Agent behavior (exported so run-podman.sh inherits them)
 # ---------------------------------------------------------------------------
-AGENT_TASK ?=
-AGENT_TASK_FILE ?=
-AGENT_REPOS ?=
-AGENT_CONTROL_REPO ?=
-AGENT_MODE ?= online
-AGENT_INTERACTIVE ?=
-AGENT_CACHE_ONLY ?=
-AGENT_WARM_TOOLCHAINS ?=
-AGENT_WARM_MODCACHE ?=
-AGENT_GO_WORK ?=
-AGENT_GOCACHE_SRC ?=
-AGENT_CI_TIMEOUT ?=
-AGENT_WORKSPACE ?=
-GOPRIVATE ?=
-AGENT_INJECT ?=
-AGENT_MODEL ?=
+export AGENT_TASK ?=
+export AGENT_TASK_FILE ?=
+export AGENT_REPOS ?=
+export AGENT_CONTROL_REPO ?=
+export AGENT_MODE ?= online
+export AGENT_INTERACTIVE ?=
+export AGENT_CACHE_ONLY ?=
+export AGENT_WARM_TOOLCHAINS ?=
+export AGENT_WARM_MODCACHE ?=
+export AGENT_GO_WORK ?=
+export AGENT_GOCACHE_SRC ?=
+export AGENT_CI_TIMEOUT ?=
+export AGENT_WORKSPACE ?=
+export GOPRIVATE ?=
+export AGENT_INJECT ?=
+export AGENT_MODEL ?=
 
 # ---------------------------------------------------------------------------
 # Proxy

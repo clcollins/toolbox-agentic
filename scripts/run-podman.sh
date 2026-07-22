@@ -119,6 +119,10 @@ PROXY_IMAGE="${PROXY_IMAGE:-localhost/agent-egress-proxy:latest}"
 # Invocation type: "online" (default) or "offline-go" (air-gapped Go builds — deps and
 # toolchains come from the image's pre-baked cache; the proxy denies package/toolchain hosts).
 AGENT_MODE="${AGENT_MODE:-online}"
+if [[ "$AGENT_MODE" != "online" ]] && [[ "$AGENT_MODE" != "offline-go" ]]; then
+  echo "ERROR: AGENT_MODE must be 'online' or 'offline-go' (got: '$AGENT_MODE')" >&2
+  exit 1
+fi
 EGRESS_PROFILE=""; [[ "$AGENT_MODE" == "offline-go" ]] && EGRESS_PROFILE="offline-go"
 NET="agent-net-$$"
 PROXY="agent-proxy-$$"

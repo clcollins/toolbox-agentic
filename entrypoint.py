@@ -329,6 +329,8 @@ def configure_go_mode():
                  a repo needs must already be in the cache, or its `go` commands fail loudly.
     """
     mode = os.environ.get("AGENT_MODE", "online")
+    if mode not in ("online", "offline-go"):
+        die(f"AGENT_MODE must be 'online' or 'offline-go' (got: '{mode}')")
     if mode != "offline-go":
         log("Go mode: online (GOTOOLCHAIN=auto, proxy fetch on demand)")
         return
