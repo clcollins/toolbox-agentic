@@ -17,6 +17,7 @@ PROXY_CONTAINER_FILE := egress-proxy/Containerfile
 CI_CONTAINER_FILE := ci/Containerfile
 CI_IMAGE := $(NAME)-ci
 IMAGE_STRING := $(IMAGE_REGISTRY)/$(PROJECT)/$(NAME)
+CACHE := "--no-cache"
 
 GIT_SHA := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 GIT_COMMIT := $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
@@ -112,7 +113,7 @@ help: ## Show this help
 
 .PHONY: image-build
 image-build: ## Build agent-runner image
-	$(CONTAINER_SUBSYS) build -f $(CONTAINER_FILE) \
+	$(CONTAINER_SUBSYS) build -f $(CONTAINER_FILE) $(CACHE) \
 		--build-arg GO_VERSION=$(GO_VERSION) \
 		--build-arg GO_SHA256_AMD64=$(GO_SHA256_AMD64) \
 		--build-arg GO_SHA256_ARM64=$(GO_SHA256_ARM64) \
@@ -123,7 +124,7 @@ image-build: ## Build agent-runner image
 
 .PHONY: image-build-proxy
 image-build-proxy: ## Build egress-proxy image
-	$(CONTAINER_SUBSYS) build -f $(PROXY_CONTAINER_FILE) \
+	$(CONTAINER_SUBSYS) build -f $(PROXY_CONTAINER_FILE) $(CACHE) \
 		-t $(PROXY_IMAGE) egress-proxy/
 
 .PHONY: image-build-all
@@ -131,7 +132,7 @@ image-build-all: image-build image-build-proxy ## Build both images
 
 .PHONY: image-build-multi
 image-build-multi: ## Build multi-arch manifest for agent-runner (amd64+arm64)
-	$(CONTAINER_SUBSYS) build --platform linux/amd64,linux/arm64 \
+	$(CONTAINER_SUBSYS) build --platform linux/amd64,linux/arm64 $(CACHE) \
 		--manifest $(IMAGE) \
 		--build-arg GO_VERSION=$(GO_VERSION) \
 		--build-arg GO_SHA256_AMD64=$(GO_SHA256_AMD64) \
@@ -143,7 +144,7 @@ image-build-multi: ## Build multi-arch manifest for agent-runner (amd64+arm64)
 
 .PHONY: image-build-multi-proxy
 image-build-multi-proxy: ## Build multi-arch manifest for egress-proxy
-	$(CONTAINER_SUBSYS) build --platform linux/amd64,linux/arm64 \
+	$(CONTAINER_SUBSYS) build --platform linux/amd64,linux/arm64 $(CACHE) \
 		--manifest $(PROXY_IMAGE) \
 		egress-proxy/
 
