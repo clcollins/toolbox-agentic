@@ -271,7 +271,7 @@ def main():
     print(f"[proxy] egress profile: {profile}", flush=True)
 
     if os.environ.get("AGENT_EGRESS_OVERRIDE"):
-        print(f"[proxy] AGENT_EGRESS_OVERRIDE active (replaced all defaults)", flush=True)
+        print("[proxy] AGENT_EGRESS_OVERRIDE active (replaced all defaults)", flush=True)
     elif os.environ.get("AGENT_EGRESS"):
         added = _parse_domain_list(os.environ["AGENT_EGRESS"])
         print(f"[proxy] AGENT_EGRESS added {len(added)} domain(s)", flush=True)
