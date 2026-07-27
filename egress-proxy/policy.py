@@ -23,6 +23,8 @@ Start:  python3 policy.py
 Env:
   EGRESS_PROFILE=offline-go   strips package/toolchain hosts from the trusted set
   PROXY_PORT=8080             listen port (default 8080)
+  AGENT_EGRESS=a.com,b.net    add domains to TRUSTED_HOSTS (comma-separated)
+  AGENT_EGRESS_OVERRIDE=x.com replace TRUSTED_HOSTS entirely (mutually exclusive)
 """
 
 import http.client
@@ -82,6 +84,38 @@ _PACKAGE_HOSTS = {
 
 if os.environ.get("EGRESS_PROFILE") == "offline-go":
     TRUSTED_HOSTS -= _PACKAGE_HOSTS
+
+
+def _parse_domain_list(csv_string):
+    """Parse comma-separated domain list, stripping whitespace and filtering empty strings."""
+    if not csv_string:
+        return set()
+    return {domain.strip() for domain in csv_string.split(",") if domain.strip()}
+
+
+def _apply_agent_egress(base_hosts):
+    """
+    Apply AGENT_EGRESS or AGENT_EGRESS_OVERRIDE environment variables.
+
+    Returns modified set of trusted hosts:
+    - AGENT_EGRESS_OVERRIDE: replaces base_hosts entirely
+    - AGENT_EGRESS: adds to base_hosts
+    - Neither set: returns base_hosts unchanged
+
+    Mutual exclusivity: AGENT_EGRESS_OVERRIDE takes precedence.
+    """
+    override = os.environ.get("AGENT_EGRESS_OVERRIDE", "").strip()
+    if override:
+        return _parse_domain_list(override)
+
+    egress = os.environ.get("AGENT_EGRESS", "").strip()
+    if egress:
+        return base_hosts | _parse_domain_list(egress)
+
+    return base_hosts
+
+
+TRUSTED_HOSTS = _apply_agent_egress(TRUSTED_HOSTS)
 
 RESEARCH_METHODS = {"GET", "HEAD"}
 
@@ -235,6 +269,12 @@ def main():
     print(f"[proxy] trusted hosts: {len(TRUSTED_HOSTS)}", flush=True)
     profile = os.environ.get("EGRESS_PROFILE", "default")
     print(f"[proxy] egress profile: {profile}", flush=True)
+
+    if os.environ.get("AGENT_EGRESS_OVERRIDE"):
+        print("[proxy] AGENT_EGRESS_OVERRIDE active (replaced all defaults)", flush=True)
+    elif os.environ.get("AGENT_EGRESS"):
+        added = _parse_domain_list(os.environ["AGENT_EGRESS"])
+        print(f"[proxy] AGENT_EGRESS added {len(added)} domain(s)", flush=True)
 
     def _shutdown(*_):
         print("[proxy] shutting down", flush=True)

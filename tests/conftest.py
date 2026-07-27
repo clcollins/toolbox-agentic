@@ -78,3 +78,96 @@ def policy_offline():
         yield mod
     finally:
         os.environ.pop("EGRESS_PROFILE", None)
+
+
+@pytest.fixture
+def policy_with_agent_egress():
+    """Import policy.py with AGENT_EGRESS='example.com'."""
+    os.environ["AGENT_EGRESS"] = "example.com"
+    try:
+        spec = importlib.util.spec_from_file_location("policy_ae", REPO_ROOT / "egress-proxy" / "policy.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        yield mod
+    finally:
+        os.environ.pop("AGENT_EGRESS", None)
+
+
+@pytest.fixture
+def policy_with_multiple_egress():
+    """Import policy.py with AGENT_EGRESS='a.com,b.net,c.org'."""
+    os.environ["AGENT_EGRESS"] = "a.com,b.net,c.org"
+    try:
+        spec = importlib.util.spec_from_file_location("policy_me", REPO_ROOT / "egress-proxy" / "policy.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        yield mod
+    finally:
+        os.environ.pop("AGENT_EGRESS", None)
+
+
+@pytest.fixture
+def policy_with_spaced_egress():
+    """Import policy.py with AGENT_EGRESS=' a.com , b.com '."""
+    os.environ["AGENT_EGRESS"] = " a.com , b.com "
+    try:
+        spec = importlib.util.spec_from_file_location("policy_se", REPO_ROOT / "egress-proxy" / "policy.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        yield mod
+    finally:
+        os.environ.pop("AGENT_EGRESS", None)
+
+
+@pytest.fixture
+def policy_with_empty_egress():
+    """Import policy.py with AGENT_EGRESS=''."""
+    os.environ["AGENT_EGRESS"] = ""
+    try:
+        spec = importlib.util.spec_from_file_location("policy_ee", REPO_ROOT / "egress-proxy" / "policy.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        yield mod
+    finally:
+        os.environ.pop("AGENT_EGRESS", None)
+
+
+@pytest.fixture
+def policy_with_override():
+    """Import policy.py with AGENT_EGRESS_OVERRIDE='custom.com'."""
+    os.environ["AGENT_EGRESS_OVERRIDE"] = "custom.com"
+    try:
+        spec = importlib.util.spec_from_file_location("policy_ov", REPO_ROOT / "egress-proxy" / "policy.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        yield mod
+    finally:
+        os.environ.pop("AGENT_EGRESS_OVERRIDE", None)
+
+
+@pytest.fixture
+def policy_with_override_multiple():
+    """Import policy.py with AGENT_EGRESS_OVERRIDE='x.com,y.net,z.org'."""
+    os.environ["AGENT_EGRESS_OVERRIDE"] = "x.com,y.net,z.org"
+    try:
+        spec = importlib.util.spec_from_file_location("policy_ovm", REPO_ROOT / "egress-proxy" / "policy.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        yield mod
+    finally:
+        os.environ.pop("AGENT_EGRESS_OVERRIDE", None)
+
+
+@pytest.fixture
+def policy_with_both_vars():
+    """Import policy.py with both AGENT_EGRESS and AGENT_EGRESS_OVERRIDE set."""
+    os.environ["AGENT_EGRESS"] = "ignored.com"
+    os.environ["AGENT_EGRESS_OVERRIDE"] = "override.com"
+    try:
+        spec = importlib.util.spec_from_file_location("policy_both", REPO_ROOT / "egress-proxy" / "policy.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        yield mod
+    finally:
+        os.environ.pop("AGENT_EGRESS", None)
+        os.environ.pop("AGENT_EGRESS_OVERRIDE", None)

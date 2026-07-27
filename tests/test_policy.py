@@ -104,3 +104,48 @@ class TestTrustedHostsSet:
         assert "github.com" in policy_offline.TRUSTED_HOSTS
         assert "api.anthropic.com" in policy_offline.TRUSTED_HOSTS
         assert "gitlab.com" in policy_offline.TRUSTED_HOSTS
+
+
+class TestAgentEgress:
+    def test_agent_egress_adds_single_domain(self, policy_with_agent_egress):
+        """AGENT_EGRESS='example.com' should add example.com to trusted hosts."""
+        assert "example.com" in policy_with_agent_egress.TRUSTED_HOSTS
+        assert "github.com" in policy_with_agent_egress.TRUSTED_HOSTS
+
+    def test_agent_egress_adds_multiple_domains(self, policy_with_multiple_egress):
+        """AGENT_EGRESS='a.com,b.net,c.org' should add all three domains."""
+        assert "a.com" in policy_with_multiple_egress.TRUSTED_HOSTS
+        assert "b.net" in policy_with_multiple_egress.TRUSTED_HOSTS
+        assert "c.org" in policy_with_multiple_egress.TRUSTED_HOSTS
+        assert "github.com" in policy_with_multiple_egress.TRUSTED_HOSTS
+
+    def test_agent_egress_handles_spaces(self, policy_with_spaced_egress):
+        """AGENT_EGRESS=' a.com , b.com ' should strip whitespace."""
+        assert "a.com" in policy_with_spaced_egress.TRUSTED_HOSTS
+        assert "b.com" in policy_with_spaced_egress.TRUSTED_HOSTS
+
+    def test_agent_egress_empty_string_no_crash(self, policy_with_empty_egress):
+        """AGENT_EGRESS='' should not crash or add empty strings."""
+        assert "" not in policy_with_empty_egress.TRUSTED_HOSTS
+        assert "github.com" in policy_with_empty_egress.TRUSTED_HOSTS
+
+    def test_agent_egress_override_replaces_all(self, policy_with_override):
+        """AGENT_EGRESS_OVERRIDE='custom.com' should replace entire TRUSTED_HOSTS."""
+        assert "custom.com" in policy_with_override.TRUSTED_HOSTS
+        assert "github.com" not in policy_with_override.TRUSTED_HOSTS
+        assert "api.anthropic.com" not in policy_with_override.TRUSTED_HOSTS
+        assert len(policy_with_override.TRUSTED_HOSTS) == 1
+
+    def test_agent_egress_override_multiple_domains(self, policy_with_override_multiple):
+        """AGENT_EGRESS_OVERRIDE with multiple domains replaces all defaults."""
+        assert "x.com" in policy_with_override_multiple.TRUSTED_HOSTS
+        assert "y.net" in policy_with_override_multiple.TRUSTED_HOSTS
+        assert "z.org" in policy_with_override_multiple.TRUSTED_HOSTS
+        assert "github.com" not in policy_with_override_multiple.TRUSTED_HOSTS
+        assert len(policy_with_override_multiple.TRUSTED_HOSTS) == 3
+
+    def test_mutual_exclusivity_override_wins(self, policy_with_both_vars):
+        """When both vars set, AGENT_EGRESS_OVERRIDE takes precedence."""
+        assert "override.com" in policy_with_both_vars.TRUSTED_HOSTS
+        assert "ignored.com" not in policy_with_both_vars.TRUSTED_HOSTS
+        assert "github.com" not in policy_with_both_vars.TRUSTED_HOSTS
