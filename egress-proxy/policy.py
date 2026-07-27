@@ -48,6 +48,7 @@ TRUSTED_HOSTS = {
     "api.github.com",
     "codeload.github.com",
     "objects.githubusercontent.com",
+    "actions.githubusercontent.com",
     "uploads.github.com",
     # GitLab
     "gitlab.com",
@@ -66,7 +67,11 @@ TRUSTED_HOSTS = {
     "index.crates.io",
 }
 
-_TRUSTED_SUFFIXES = ("-aiplatform.googleapis.com",)
+_TRUSTED_SUFFIXES = (
+    "-aiplatform.googleapis.com",
+    ".actions.githubusercontent.com",
+    ".redhat.com",
+)
 
 _PACKAGE_HOSTS = {
     "proxy.golang.org",
